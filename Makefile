@@ -1,23 +1,24 @@
 
-
 all: build
 
 build:
-	# @sudo mkdir ./postgres
-	@docker compose up --build
-	@docker compose exec django python manage.py migrate
-	# @docker compose exec django python manage.py createsuperuser
+	@docker compose up -d --build
+
+exec:
+	@docker exec django python manage.py migrate
 
 run:
-	@docker compose up
+	@docker compose up -d
 
 stop:
 	@docker compose down
 
+restart: stop run
+
 clean: stop
 	@docker rmi -f $$(docker images -qa);
 	@docker rm -f $$(docker ps -a -q);
-	@docker volume rm -f $$(docker volume ls);
+	@docker volume rm $$(docker volume ls -q);
 
 re: clean all
 

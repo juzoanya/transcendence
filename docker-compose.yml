@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: django
     command: python manage.py runserver 0.0.0.0:8080
     volumes:
@@ -33,11 +35,7 @@ volumes:
   
   postgres_data:
     name: postgres_data
-    # driver: local
-    # driver_opts:
-    #   device: ./postgres
-    #   o: bind
-    #   type: none
+
 
 networks:
   default:
