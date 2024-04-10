@@ -20,5 +20,3 @@ DB_PORT="5432"        #from docker-compose.yml
 DB_ENGINE="django.db.backends.postgresql"
 
 https://medium.com/@akshatgadodia/deploying-a-django-application-with-docker-nginx-and-certbot-eaf576463f19
-
-https://github.com/testdrivenio/django-on-docker/blob/main/app/requirements.txt
