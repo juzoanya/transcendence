@@ -1,31 +1,61 @@
-web:
-    build: .
-    container_name: test_deploy_web
-    command: gunicorn app.wsgi:application --bind 0.0.0.0:8000
-    volumes:
-      - ./app:/app/
-      - staticfiles:/app/static/
-    expose:
-      - 8000
-    env_file:
-      - ./.env
-    depends_on:
-      - db
-nginx:
-    build: ./nginx
-    container_name: test_deploy_nginx
-    volumes:
-      - staticfiles:/app/static/
-    ports:
-      - 8008:80
-    depends_on:
-      - web
-db:
-    image: postgres
-    container_name: test_deploy_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
-    environment:
-      - POSTGRES_DB=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=hello
+version: '3.8'
+
+services:
+
+  nginx:
+      build: ./nginx
+      container_name: nginx
+      volumes:
+        - staticfiles:/app/static/
+      ports:
+        - 8008:80
+      depends_on:
+        - backend
+      
+  backend:
+      build: .
+      container_name: backend
+      command: sh -c "python3 manage.py makemigrations && python3 manage.py migrate --noinput && python3 manage.py collectstatic --noinput && gunicorn --config gunicorn_config.py aurigaone.wsgi:application" #gunicorn app.wsgi:application --bind 0.0.0.0:8000
+      volumes:
+        - backend_data:/app/
+        - staticfiles:/app/static/
+      expose:
+        - 8000
+      env_file:
+        - ./.env
+      depends_on:
+        - db
+  
+  db:
+      image: postgres
+      container_name: pgdb
+      volumes:
+        - postgres_data:/var/lib/postgresql/data/
+      environment:
+        - POSTGRES_DB=postgres
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=hello
+
+volumes:
+  backend_data:
+    name: backend_data
+    driver: local
+    driver_opts:
+      device: ./
+      o: bind
+      type: none
+  
+  staticfiles:
+      name: staticfiles
+      driver: local
+      driver_opts:
+        device: ./
+        o: bind
+        type: none
+
+  postgres_data:
+    name: postgres_data
+
+networks:
+  default:
+    name: main_network
