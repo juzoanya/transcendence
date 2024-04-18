@@ -9,9 +9,11 @@ urlpatterns = [
     path('logout', views.logout_view, name='logout'),
 
     path('profile/<user_id>', views.profile_view, name='profile'),
-    path('profile-reg', views.profile_reg, name='profile-reg'),
+    path('check-full-profile', views.check_full_profile, name='check-full-profile'),
+    path('complete-profile', views.complete_profile, name='complete-profile'),
     path('dashboard', views.dashboard_view, name='dashboard'),
     path('search-user', views.user_search_results, name='search-user'),
+    path('search', views.search, name='search'),
     path('friend-request', views.friend_request, name='friend-request'),
 
     path('password-reset', auth_view.PasswordResetView.as_view(), name='password-reset'),

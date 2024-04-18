@@ -1,9 +1,11 @@
 import json
 from django.conf import settings
 from django.shortcuts import render, redirect
-from .models import Profile, FriendRequest, FriendList, Player
+# from friends.models import FriendRequest, FriendList
+from .models import UserAccount, Player
+from friends.views import friend_list
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.models import User
+# from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404
 from datetime import datetime, timedelta
@@ -26,25 +28,33 @@ from django.views.decorators.csrf import csrf_exempt
 def homepage(request):
     return render(request, 'index.html')
 
+
 def register_view(request):
+    user = request.user
+    if user.is_authenticated:
+        return JsonResponse({'success': True, 'message': f'You are already logged in as {user}', 'redirect': True, 'redirect_url': 'dashboard'}, status=200)
     if request.method == 'POST':
         data = json.loads(request.body)
         username = data.get('username')
         email = data.get('email')
         password = data.get('password')
 
-        if User.objects.filter(username=username).exists():
+        if UserAccount.objects.filter(username=username).exists():
             return JsonResponse({'success': False, 'error':'Username already exists'}, status=400)
-        if User.objects.filter(email=email).exists():
+        if UserAccount.objects.filter(email=email).exists():
             return JsonResponse({'success': False, 'error':'email already exists'}, status=400)
         
-        user = User.objects.create_user(username, email, password)
+        user = UserAccount.objects.create_user(username, email, password)
         return JsonResponse({'success': True, 'message':'Registration Successful', 'redirect':True, 'redirect_url': 'login'}, status=200)
     return render(request, 'user/register.html')
     # return JsonResponse({'success': False}, status=405)
 
 
 def login_view(request):
+
+    # if request.user.is_authenticated:
+    #     return JsonResponse({'success': True, 'message': 'You have an active session.', 'redirect': True, 'redirect_url': 'dashboard'})
+    
     if request.method == 'POST':
         data = json.loads(request.body)
         username = data.get('username')
@@ -55,22 +65,28 @@ def login_view(request):
         if user is not None:
             if user.is_active:
                 login(request, user)
-                url = None
-                if user.last_login == None:
-                    url = 'profile-reg'
-                else:
-                    url = 'dashboard'
-                return JsonResponse({'success': True, 'message': 'Login Successful', 'redirect': True, 'redirect_url': url}, status=200)
+                user.status = 'online'
+                user.save()
+                return JsonResponse({'success': True, 'message': 'Login Successful', 'redirect': True, 'redirect_url': 'dashboard'}, status=200)
             else:
                 return JsonResponse({'success': False, 'error': 'Account is disabled'})
         else:
             return JsonResponse({'success': False, 'error': 'Invalid credentials'})
+
+    return render(request, 'user/login.html')
     
-    if request.user.is_authenticated:
-        return redirect('dashboard')
-    else:
-        return render(request, 'user/login.html')
-    
+
+@login_required
+def check_full_profile(request):
+    user = request.user
+    account = UserAccount.objects.get(username=user)
+    data = {
+        'full_profile': account.full_profile
+    }
+
+    return JsonResponse({'data': data})
+
+
 
 @login_required
 def dashboard_view(request):
@@ -79,7 +95,11 @@ def dashboard_view(request):
 
 @login_required
 def logout_view(request):
+    user = request.user
+    account = UserAccount.objects.get(username=user)
     logout(request)
+    account.status = 'offline'
+    account.save()
     return redirect('home')
 
 
@@ -88,7 +108,7 @@ def profile_view(request, *args, **kwargs):
 
     user_id = kwargs.get('user_id')
     try:
-        account = User.objects.get(pk=user_id)
+        account = UserAccount.objects.get(pk=user_id)
         # profile = Profile.objects.get(user=account.username)
     except:
         return JsonResponse({'success': False, 'message': 'User does not exist.'}, status=400)
@@ -99,7 +119,7 @@ def profile_view(request, *args, **kwargs):
             'email': account.email,
             'first_name': account.first_name,
             'last_name': account.last_name,
-            # 'avatar': profile.avatar.url,
+            'avatar': account.avatar.url,
             'last_login': account.last_login
         }
 
@@ -112,6 +132,9 @@ def profile_view(request, *args, **kwargs):
         elif not user.is_authenticated:
             is_self = False
         
+        friends = friend_list(request, *args, **kwargs)
+        
+        data['friends'] = friends
         data['is_self'] = is_self
         data['is_friend'] = is_friend
         
@@ -121,41 +144,8 @@ def profile_view(request, *args, **kwargs):
         return render(request, 'user/profile-view.html', context)
 
 
-
 @login_required
-def profile_viewr(request):
-    user = request.user
-    user_profile = User.objects.get(username=user)
-    profile = Profile.objects.get(user=user)
-    player = Player.objects.get(user=user)
-    friends = FriendList.objects.filter(user=user)
-    friends_list = [friend.friend.username for friend in friends]
-
-    data = {
-        'username': user.username,
-        'email': user.email,
-        'first_name': user.first_name,
-        'last_name': user.last_name,
-        'avatar': profile.avatar.url,
-        'display_name': player.display_name,
-        'friends': friends_list,
-        'games_played': player.games_played,
-        'wins': player.wins,
-        'losses': player.losses,
-        'is_active': user.is_active,
-        'date_joined': user.date_joined,
-        'last_login': user.last_login
-    }
-
-    # json_data = json.dumps(data, cls=DjangoJSONEncoder)
-
-    # return JsonResponse(json_data, safe=False)
-    return render(request, 'user/profile-view.html', {'data': data})
-
-
-
-@login_required
-def profile_reg(request):
+def complete_profile(request):
     if request.method == 'POST':
 
         user = request.user
@@ -171,16 +161,12 @@ def profile_reg(request):
                 user.first_name = first_name
             if last_name:
                 user.last_name = last_name
+            if avatar:
+                user.avatar = avatar
             user.save()
-
-        try:
-            profile = Profile.objects.get(user=user)
-        except Profile.DoesNotExist:
-            profile = Profile.objects.create(user=user)
-
-        profile.avatar = avatar
-        profile.save()
-
+        
+        user.full_profile = True
+        user.save()
         player = Player.objects.create(user=user)
         
         return JsonResponse({'success': True, 'message': 'Profile Updated', 'redirect': True, 'redirect_url': 'profile'}, status=200)
@@ -194,15 +180,17 @@ def user_search_results(request):
     if request.method == 'POST':
         res = None
         entry = request.POST.get('userName')
-        qs = User.objects.filter(username__icontains=entry)
+        qs = UserAccount.objects.filter(username__icontains=entry)
         if len(qs) > 0 and len(entry) > 0:
             data = []
             for pos in qs:
                 item = {
                     'pk': pos.pk,
                     'username': pos.username,
+                    'email': pos.email,
                     'first_name': pos.first_name,
-                    'last_name': pos.last_name
+                    'last_name': pos.last_name,
+                    'avatar': pos.avatar.url
                 }
                 data.append(item)
             res = data
@@ -214,34 +202,27 @@ def user_search_results(request):
 
 
 @login_required
-def friend_request(request):
-    pass
-
+def search(request, *args, **kwargs):
+    
+    if request.method == 'GET':
+        query = request.GET.get('q')
+        if len(query) > 0:
+            qs = UserAccount.objects.filter(username__icontains=query).filter(email__icontains=query).distinct()
+            data = []
+            for q in qs:
+                item = {
+                    'pk': q.pk,
+                    'username': q.username,
+                    'email': q.email,
+                    'first_name': q.first_name,
+                    'last_name': q.last_name,
+                    'avatar': q.avatar.url
+                }
+                data.append((item, False)) 
+        return JsonResponse({'data': data})
 
 
 @login_required
-def send_friend_request(request):
-    user = request.user
-    if request.method == 'POST':
-        friend_id = request.POST.get('receiver_id')
-        if friend_id:
-            receiver = User.objects.get(pk=friend_id)
-            try:
-                friend_requests = FriendRequest.objects.filter(sender=user, receiver=receiver)
-                try:
-                    for req in friend_requests:
-                        if req.is_active:
-                            raise Exception("You have an active friend request.")
-                    friend_request = FriendRequest(sender=user, receiver=receiver)
-                    friend_request.save()
-                    return JsonResponse({'success': True, 'message': 'Friend request was sent'}, status=200)
-                except Exception as e:
-                    return JsonResponse({'success': False, 'message': str(e)}, status=400)
-            except FriendRequest.DoesNotExist:
-                friend_request = FriendRequest(sender=user, receiver=receiver)
-                friend_request.save()
-                return JsonResponse({'success': True, 'message': 'Friend request was sent'}, status=200)
-        else:
-            return JsonResponse({'success': False, 'message': 'User does not exist'}, status=400)
-    else:
-        return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
+def friend_request(request):
+    pass
+

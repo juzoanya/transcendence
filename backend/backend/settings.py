@@ -25,7 +25,12 @@ SECRET_KEY = 'django-insecure-f*m^qhb199t9s9y2571_m-=$xr47-pql6kg5#&)t=+cgt6iixm
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+AUTH_USER_MODEL = 'user.UserAccount'
+
 ALLOWED_HOSTS = ['*']
+
+
+LOGIN_URL = '/login'
 
 
 # Application definition
@@ -39,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'user',
+    'friends',
 ]
 
 MIDDLEWARE = [
