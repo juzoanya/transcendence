@@ -11,12 +11,22 @@ class FriendRequest(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def accept(self):
-        FriendList.objects.create(user=self.sender, friend=self.reciever)
-        self.status = 'accepted'
-        self.save()
+        receiver_list = FriendList.objects.get(user=self.receiver)
+        if receiver_list:
+            receiver_list.add_friend(self.sender)
+            sender_list = FriendList.objects.get(user=self.sender)
+            if sender_list:
+                sender_list.add_friend(self.receiver)
+                self.is_active = False
+                self.save()
+
 
     def reject(self):
-        self.status = 'rejected'
+        self.is_active = False
+        self.save()
+
+    def cancel(self):
+        self.is_active = False
         self.save()
 
 
@@ -46,3 +56,14 @@ class FriendList(models.Model):
         if friend in self.friends.all():
             return True
         return False
+
+
+class BlockList(models.Model):
+    user = models.OneToOneField(UserAccount, on_delete=models.CASCADE)
+    blocked = models.ManyToManyField(UserAccount, blank=True, related_name='blocked')
+
+    def __str__(self):
+        return self.user.username
+    
+    def block_user():
+        pass

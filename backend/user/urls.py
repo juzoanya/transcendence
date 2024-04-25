@@ -14,7 +14,6 @@ urlpatterns = [
     path('dashboard', views.dashboard_view, name='dashboard'),
     path('search-user', views.user_search_results, name='search-user'),
     path('search', views.search, name='search'),
-    path('friend-request', views.friend_request, name='friend-request'),
 
     path('password-reset', auth_view.PasswordResetView.as_view(), name='password-reset'),
     path('reset/<uidb64>/<token>', auth_view.PasswordResetConfirmView.as_view(), name='password-reset-confirm'),

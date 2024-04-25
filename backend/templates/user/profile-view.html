@@ -166,11 +166,11 @@
     
                 <div class="card m-2 px-4 pb-4" id="friendRequests" style="display: none;">
                     <!-- Friend requests -->
-                      <div class="d-flex flex-column pt-4">
+                        <div class="d-flex flex-column pt-4">
                             <div class="d-flex flex-row align-items-center justify-content-center icon-container">
                                 <span class="material-icons mr-2 person-add-icon">person_add</span><span class="friend-text" id="viewFriendRequests">Friend Requests ({{friend_requests|length}})</span>
                             </div>
-                    </div>
+                        </div>
                 </div>
     
                     <!-- if is_friend  -->
@@ -235,7 +235,6 @@
         document.getElementById('viewFriendRequests').addEventListener('click', function(event) {
 		    event.preventDefault();
             const id = getReceiverId();
-            // sendFriendRequest("{{id}}");
             fetch('/friend/requests/{{ request.user.id }}', {
                 method: 'GET',
                 headers: {
