@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
-from .utils import get_avatar_path, set_default_avatar
+from .utils import *
 
 
 class UserAccountManager(BaseUserManager):
@@ -70,21 +70,22 @@ class UserAccount(AbstractBaseUser):
         return True
     
 
-    
 
 class Player(models.Model):
-
-    def get_default_value(self):
-        return self.user.username
-    
     user = models.OneToOneField(UserAccount, related_name='player', on_delete=models.CASCADE)
-    display_name = models.CharField(max_length=30, default='get_default_value')
+    alias = models.CharField(max_length=30, unique=True)
     games_played = models.PositiveIntegerField(default=0)
     wins = models.PositiveIntegerField(default=0)
     losses = models.PositiveIntegerField(default=0)
 
+
     def __str__(self):
         return self.user.username
+
+    def save(self, *args, **kwargs):
+        if not self.alias:
+            self.alias = self.user.username
+        super().save(*args, **kwargs)
 
 
 

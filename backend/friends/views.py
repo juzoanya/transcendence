@@ -6,45 +6,67 @@ from django.contrib.auth.decorators import login_required
 from datetime import datetime, timedelta
 from django.http import HttpResponse, JsonResponse
 from django.core.serializers.json import DjangoJSONEncoder
+from django.views.decorators.csrf import csrf_exempt
 
 
+def getUserData(user):
+	return {
+			'id': user.pk,
+			'username': user.username,
+			'email': user.email,
+			'first_name': user.first_name,
+			'last_name': user.last_name,
+			'avatar': user.avatar.url,
+			'last_login': user.last_login,
+			'date_joined': user.date_joined
+		}
 
+
+@csrf_exempt
 @login_required
 def friend_list(request, *args, **kwargs):
 	user = request.user
-	user_id = kwargs.get('user-id')
+	user_id = kwargs.get('user_id')
 	if user_id:
 		try:
 			this_user = UserAccount.objects.get(pk=user_id)
 		except UserAccount.DoesNotExist:
+			return {'error': "error user no exit"}
 			return JsonResponse({})
 		try:
 			friend_list = FriendList.objects.get(user=this_user)
 		except FriendList.DoesNotExist:
+			friend_list = []
+			return {'error': "error friendlist no exit"}
 			return JsonResponse({})
 		
 		if user != this_user:
 			if not user in friend_list.friends.all():
+				return {'error': "error user not this_user"}
 				return JsonResponse({})
 		
 		friends = []
 		user_friend_list = FriendList.objects.get(user=user)
-		for friend in friend_list.firends.all():
-			friends.append((friend, user_friend_list.is_mutual_friend(friend)))
+		for friend in friend_list.friends.all():
+			friends.append((getUserData(friend)))
 		
-		return JsonResponse({'data': friends}, status=200)
+		return friends
+		# return JsonResponse({'data': friends}, status=200)
 	else:
+		return {'success': False}
 		return JsonResponse({'success': False}, status=400)
 
 
 
+
+@csrf_exempt
 @login_required
 def accept_friend_request(request, *args, **kwargs):
 	user = request.user
 	if request.method == 'GET':
 		friend_request_id = kwargs.get('friend_request_id')
 		if friend_request_id:
-			friend_request = FriendRequest.objects.get(pk=friend_requests_sent)
+			friend_request = FriendRequest.objects.get(pk=friend_request_id)
 			if friend_request:
 				if friend_request.receiver == user:
 					friend_request.accept()
@@ -59,14 +81,15 @@ def accept_friend_request(request, *args, **kwargs):
 		return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
 		
 
-
+@csrf_exempt
 @login_required
 def reject_friend_request(request, *args, **kwargs):
 	user = request.user
 	if request.method == 'GET':
 		friend_request_id = kwargs.get('friend_request_id')
 		if friend_request_id:
-			friend_request = FriendList.objects.get(pk=friend_request_id)
+			friend_request = FriendRequest.objects.get(pk=friend_request_id)
+			# friend_request = FriendList.objects.get(pk=friend_request_id)
 			if friend_request:
 				if friend_request.receiver == user:
 					friend_request.reject()
@@ -81,12 +104,14 @@ def reject_friend_request(request, *args, **kwargs):
 		return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
 
 
-
+@csrf_exempt
 @login_required
 def cancel_friend_request(request, *args, **kwargs):
 	user = request.user
 	if request.method == 'POST':
-		receiver_id = request.POST.get('receiver_id')
+		data = json.loads(request.body)
+		receiver_id = data.get('receiver_id')
+		# receiver_id = request.POST.get('receiver_id')
 		if receiver_id:
 			receiver = UserAccount.objects.get(pk=receiver_id)
 			try:
@@ -106,7 +131,7 @@ def cancel_friend_request(request, *args, **kwargs):
 		return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
 
 
-
+@csrf_exempt
 @login_required
 def friend_requests_sent(request, *args, **kwargs):
 	user = request.user
@@ -117,8 +142,9 @@ def friend_requests_sent(request, *args, **kwargs):
 		sent_requests = FriendRequest.objects.filter(sender=account, is_active=True)
 		for req in sent_requests:
 			item = {
-				'id': req.pk,
-				'receiver': req.receiver.username,
+				'request_id': req.pk,
+				'id': req.receiver.pk,
+				'username': req.receiver.username,
 				'avatar': req.receiver.avatar.url
 			}
 			data.append(item)
@@ -127,7 +153,7 @@ def friend_requests_sent(request, *args, **kwargs):
 	return JsonResponse({'data': data})
 
 
-
+@csrf_exempt
 @login_required
 def friend_requests_received(request, *args, **kwargs):
 	user = request.user
@@ -138,8 +164,9 @@ def friend_requests_received(request, *args, **kwargs):
 		friend_requests = FriendRequest.objects.filter(receiver=account, is_active=True)
 		for req in friend_requests:
 			item = {
-				'id': req.pk,
-				'sender':req.sender.username,
+				'request_id': req.pk,
+				'id':req.sender.pk,
+				'username':req.sender.username,
 				'avatar': req.sender.avatar.url
 			}
 			data.append(item)
@@ -148,7 +175,7 @@ def friend_requests_received(request, *args, **kwargs):
 	return JsonResponse({'data': data})
 
 
-
+@csrf_exempt
 @login_required
 def send_friend_request(request, *args, **kwargs):
 	user = request.user
@@ -163,7 +190,7 @@ def send_friend_request(request, *args, **kwargs):
 					for req in friend_requests:
 						if req.is_active:
 							raise Exception("You have an active friend request.")
-					friend_request = FriendRequest(sender=user, receiver=receiver)
+					friend_request = FriendRequest.objects.create(sender=user, receiver=receiver)
 					friend_request.save()
 					return JsonResponse({'success': True, 'message': 'Friend request was sent'}, status=200)
 				except Exception as e:
@@ -178,7 +205,7 @@ def send_friend_request(request, *args, **kwargs):
 		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
 	
 
-
+@csrf_exempt
 @login_required
 def remove_friend(request, *args, **kwargs):
 	user = request.user

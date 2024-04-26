@@ -24,11 +24,11 @@ from django.views.decorators.csrf import csrf_exempt
 #     }
 #     return jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256').decode('utf-8')
 
-
+@csrf_exempt
 def homepage(request):
 	return render(request, 'index.html')
 
-
+@csrf_exempt
 def register_view(request):
 	user = request.user
 	if user.is_authenticated:
@@ -45,17 +45,21 @@ def register_view(request):
 			return JsonResponse({'success': False, 'error':'email already exists'}, status=400)
 		
 		user = UserAccount.objects.create_user(username, email, password)
+		player = Player.objects.create(user=user)
+		friend_list = FriendList.objects.create(user=user)
 		return JsonResponse({'success': True, 'message':'Registration Successful'}, status=200)
 	# return render(request, 'user/register.html')
 	else:
 		return JsonResponse({'success': False}, status=403)
 
-
+@csrf_exempt
 def login_view(request):
 
-	if request.user.is_authenticated:
-		return JsonResponse({'success': True, 'message': 'You have an active session.'}, status=200)
-
+	if request.method == "GET":
+		if request.user.is_authenticated:
+			return JsonResponse({'success': True, 'message': 'You have an active session.', 'user_id': request.user.pk}, status=200)
+		return JsonResponse({'success': False, 'message': 'no session'})
+	
 	if request.method == 'POST':
 		data = json.loads(request.body)
 		username = data.get('username')
@@ -68,7 +72,7 @@ def login_view(request):
 				login(request, user)
 				user.status = 'online'
 				user.save()
-				return JsonResponse({'success': True, 'message': 'Login Successful'}, status=200)
+				return JsonResponse({'success': True, 'message': 'Login Successful', 'user_id': request.user.pk}, status=200)
 			else:
 				return JsonResponse({'success': False, 'error': 'Account is disabled'}, status=400)
 		else:
@@ -78,6 +82,7 @@ def login_view(request):
 	# return render(request, 'user/login.html')
 	
 
+@csrf_exempt
 @login_required
 def check_full_profile(request):
 	user = request.user
@@ -89,12 +94,13 @@ def check_full_profile(request):
 	return JsonResponse({'data': data})
 
 
-
+@csrf_exempt
 @login_required
 def dashboard_view(request):
 	return render(request, 'user/dashboard.html')
 
 
+@csrf_exempt
 @login_required
 def logout_view(request):
 	user = request.user
@@ -103,12 +109,13 @@ def logout_view(request):
 		logout(request)
 		account.status = 'offline'
 		account.save()
-	except:
-		return JsonResponse({'success': False, 'message': 'Something went wrong'}, status=500)
+	except Exception as e :
+		return JsonResponse({'success': False, 'message': str(e)}, status=500)
 	return JsonResponse({'success': True, 'message': 'Logout successful'}, status=200)
 	# return redirect('home')
 
 
+@csrf_exempt
 @login_required
 def profile_view(request, *args, **kwargs):
 
@@ -148,9 +155,12 @@ def profile_view(request, *args, **kwargs):
 		context = {
 			'json_data': json.dumps(data, cls=DjangoJSONEncoder)
 		}
+		return JsonResponse(data, safe=False)
+		return JsonResponse(data)
 		return render(request, 'user/profile-view.html', context)
 
 
+@csrf_exempt
 @login_required
 def complete_profile(request):
 	if request.method == 'POST':
@@ -181,7 +191,7 @@ def complete_profile(request):
 	return render(request, 'user/profile-reg.html')
 
  
-
+@csrf_exempt
 @login_required
 def user_search_results(request):
 	if request.method == 'POST':
@@ -211,6 +221,7 @@ def user_search_results(request):
 	return JsonResponse({'success': False}, status=403)
 
 
+@csrf_exempt
 @login_required
 def search(request, *args, **kwargs):
 	
