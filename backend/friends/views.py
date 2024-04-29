@@ -1,6 +1,6 @@
 import json
 from django.shortcuts import render
-from .models import FriendList, FriendRequest
+from .models import *
 from user.models import UserAccount
 from django.contrib.auth.decorators import login_required
 from datetime import datetime, timedelta
@@ -9,17 +9,22 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.csrf import csrf_exempt
 
 
-def getUserData(user):
-	return {
-			'id': user.pk,
-			'username': user.username,
-			'email': user.email,
-			'first_name': user.first_name,
-			'last_name': user.last_name,
-			'avatar': user.avatar.url,
-			'last_login': user.last_login,
-			'date_joined': user.date_joined
+def getUserData(user, friend, user_friend_list):
+	data = {
+			'id': friend.pk,
+			'username': friend.username,
+			'email': friend.email,
+			'first_name': friend.first_name,
+			'last_name': friend.last_name,
+			'avatar': friend.avatar.url,
+			'last_login': friend.last_login,
+			'date_joined': friend.date_joined
 		}
+	if user != friend:
+		is_mutual_friend = user_friend_list.is_mutual_friend(friend)
+		data['is_mutual_friend'] = is_mutual_friend
+	
+	return data
 
 
 @csrf_exempt
@@ -33,23 +38,31 @@ def friend_list(request, *args, **kwargs):
 		except UserAccount.DoesNotExist:
 			return {'error': "error user no exit"}
 			return JsonResponse({})
+		
 		try:
 			friend_list = FriendList.objects.get(user=this_user)
 		except FriendList.DoesNotExist:
 			friend_list = []
-			return {'error': "error friendlist no exit"}
+			return {'error': "User has no friends"}
 			return JsonResponse({})
 		
+		#must be friends to view another profile's friend list
 		if user != this_user:
 			if not user in friend_list.friends.all():
-				return {'error': "error user not this_user"}
-				return JsonResponse({})
+				return {'error': "You must be friends to view this User's Frienlist"}
+				return JsonResponse({'success': False, 'message': ''})
 		
 		friends = []
 		user_friend_list = FriendList.objects.get(user=user)
+
 		for friend in friend_list.friends.all():
-			friends.append((getUserData(friend)))
-		
+			if user != this_user:
+				if not BlockList.is_either_blocked(this_user, friend):
+					friends.append((getUserData(user, friend, user_friend_list)))
+			else:
+				if not BlockList.is_either_blocked(user, friend):
+					friends.append((getUserData(user, friend, user_friend_list)))
+
 		return friends
 		# return JsonResponse({'data': friends}, status=200)
 	else:
@@ -89,7 +102,6 @@ def reject_friend_request(request, *args, **kwargs):
 		friend_request_id = kwargs.get('friend_request_id')
 		if friend_request_id:
 			friend_request = FriendRequest.objects.get(pk=friend_request_id)
-			# friend_request = FriendList.objects.get(pk=friend_request_id)
 			if friend_request:
 				if friend_request.receiver == user:
 					friend_request.reject()
@@ -111,7 +123,6 @@ def cancel_friend_request(request, *args, **kwargs):
 	if request.method == 'POST':
 		data = json.loads(request.body)
 		receiver_id = data.get('receiver_id')
-		# receiver_id = request.POST.get('receiver_id')
 		if receiver_id:
 			receiver = UserAccount.objects.get(pk=receiver_id)
 			try:
@@ -191,6 +202,8 @@ def send_friend_request(request, *args, **kwargs):
 						if req.is_active:
 							raise Exception("You have an active friend request.")
 					friend_request = FriendRequest.objects.create(sender=user, receiver=receiver)
+					# friend_request = FriendRequest.objects.get_or_create(sender=user, receiver=receiver)
+					# friend_request = FriendRequest(sender=user, receiver=receiver)
 					friend_request.save()
 					return JsonResponse({'success': True, 'message': 'Friend request was sent'}, status=200)
 				except Exception as e:
@@ -224,3 +237,75 @@ def remove_friend(request, *args, **kwargs):
 			return JsonResponse({'success': False, 'message': 'Bad request'}, status=400)
 	else:
 		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
+
+
+@csrf_exempt
+@login_required
+def block_user(request, *args, **kwargs):
+	user = request.user
+	if request.method == 'GET':
+		user_id = kwargs.get('user_id')
+		to_block = UserAccount.objects.get(pk=user_id)
+		if user_id and to_block != user:
+			try:
+				block_list = BlockList.objects.get(user=user)
+				block_list.block_user(to_block)
+				return JsonResponse({'success': True, 'message': f'You have successfully blocked {to_block}'}, status=200)
+			except Exception as e:
+				return JsonResponse({'success': False, 'message': str(e)}, status=400)
+		else:
+			return JsonResponse({'success': False, 'message': 'Bad request'}, status=400)
+	else:
+		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
+		
+
+
+
+@csrf_exempt
+@login_required
+def unblock_user(request, *args, **kwargs):
+	user = request.user
+	if request.method == 'GET':
+		user_id = kwargs.get('user_id')
+		to_unblock = UserAccount.objects.get(pk=user_id)
+		if user_id and to_unblock != user:
+			try:
+				block_list = BlockList.objects.get(user=user)
+				block_list.unblock_user(to_unblock)
+				return JsonResponse({'success': True, 'message': f'You have successfully unblocked {to_unblock}'}, status=200)
+			except Exception as e:
+				return JsonResponse({'success': False, 'message': str(e)}, status=400)
+		else:
+			return JsonResponse({'success': False, 'message': 'Bad request'}, status=400)
+	else:
+		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
+	
+
+@csrf_exempt
+@login_required
+def block_list_view(request, *args, **kwargs):
+	user = request.user
+	result_block_list = []
+	if request.method == 'GET':
+		try:
+			block_list = BlockList.objects.get(user=user)
+			for account in block_list.blocked.all():
+				block_user = {
+					'id': account.pk,
+					'username': account.username,
+					'email': account.email,
+					'first_name': account.first_name,
+					'last_name': account.last_name,
+					'avatar': account.avatar.url,
+					'last_login': account.last_login,
+					'date_joined': account.date_joined
+				}
+				result_block_list.append(block_user)
+			return result_block_list
+		except Exception as e:
+			return {'success': False, 'message': str(e)}
+	else:
+		return {'success': False, 'message': 'method not allowed'}
+
+			
+

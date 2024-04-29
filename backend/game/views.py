@@ -14,6 +14,7 @@ from django.views.decorators.csrf import csrf_exempt
 # Create your views here.
 
 @csrf_exempt
+@login_required
 def game_results(request, *args, **kwargs):
     if request.method == 'POST':
         data = json.loads(request.body)
@@ -39,8 +40,15 @@ def game_results(request, *args, **kwargs):
                 player_one_score=score_one,
                 player_two_score=score_two
             )
+            result.save()
             return JsonResponse({'success': True, 'message': 'record created'}, status=200)
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=400)
     else:
         return JsonResponse({'success': False}, status=403)
+
+
+@csrf_exempt
+@login_required
+def match_history(request, *args, **kwargs):
+    pass

@@ -1,9 +1,9 @@
 import json
 from django.conf import settings
 from django.shortcuts import render, redirect
-from friends.models import FriendRequest, FriendList
+from friends.models import *
 from .models import UserAccount, Player
-from friends.views import friend_list
+from friends.views import friend_list, block_list_view
 from django.contrib.auth import authenticate, login, logout
 # from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
@@ -52,13 +52,13 @@ def register_view(request):
 	else:
 		return JsonResponse({'success': False}, status=403)
 
-@csrf_exempt
+# @csrf_exempt
 def login_view(request):
 
 	if request.method == "GET":
 		if request.user.is_authenticated:
 			return JsonResponse({'success': True, 'message': 'You have an active session.', 'user_id': request.user.pk}, status=200)
-		return JsonResponse({'success': False, 'message': 'no session'})
+		# return JsonResponse({'success': False, 'message': 'no session'})
 	
 	if request.method == 'POST':
 		data = json.loads(request.body)
@@ -77,9 +77,9 @@ def login_view(request):
 				return JsonResponse({'success': False, 'error': 'Account is disabled'}, status=400)
 		else:
 			return JsonResponse({'success': False, 'error': 'Invalid credentials'}, status=400)
-	else:
-		return JsonResponse({'success': False}, status=403)   
-	# return render(request, 'user/login.html')
+	# else:
+	# 	return JsonResponse({'success': False}, status=403)   
+	return render(request, 'user/login.html')
 	
 
 @csrf_exempt
@@ -118,12 +118,16 @@ def logout_view(request):
 @csrf_exempt
 @login_required
 def profile_view(request, *args, **kwargs):
-
+	user = request.user
 	user_id = kwargs.get('user_id')
+
 	try:
 		account = UserAccount.objects.get(pk=user_id)
-	except:
-		return JsonResponse({'success': False, 'message': 'User does not exist.'}, status=400)
+	except Exception as e:
+		return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+	if BlockList.is_either_blocked(user, account):
+		return JsonResponse({'success': False, 'message': 'Blocked: You cannot view this account'}, status=400)
 
 	if account:
 		data = {
@@ -139,7 +143,6 @@ def profile_view(request, *args, **kwargs):
 
 		is_self = True
 		is_friend = False
-		user = request.user
 
 		if user.is_authenticated and user != account:
 			is_self = False
@@ -147,8 +150,10 @@ def profile_view(request, *args, **kwargs):
 			is_self = False
 		
 		friends = friend_list(request, *args, **kwargs)
+		block_list = block_list_view(request, *args, **kwargs)
 		
 		data['friends'] = friends
+		data['blocked'] = block_list
 		data['is_self'] = is_self
 		data['is_friend'] = is_friend
 		
@@ -156,11 +161,10 @@ def profile_view(request, *args, **kwargs):
 			'json_data': json.dumps(data, cls=DjangoJSONEncoder)
 		}
 		return JsonResponse(data, safe=False)
-		return JsonResponse(data)
 		return render(request, 'user/profile-view.html', context)
 
 
-@csrf_exempt
+# @csrf_exempt
 @login_required
 def complete_profile(request):
 	if request.method == 'POST':
@@ -184,7 +188,6 @@ def complete_profile(request):
 		
 		user.full_profile = True
 		user.save()
-		player = Player.objects.create(user=user)
 		
 		return JsonResponse({'success': True, 'message': 'Profile Updated', 'redirect': True, 'redirect_url': 'profile'}, status=200)
 	

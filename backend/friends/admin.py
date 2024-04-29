@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import FriendList, FriendRequest
+from .models import *
 
 
 class FriendRequestAdmin(UserAdmin):
@@ -27,3 +27,14 @@ class FriendListAdmin(admin.ModelAdmin):
         model = FriendList
 
 admin.site.register(FriendList, FriendListAdmin)
+
+
+class BlockListAdmin(admin.ModelAdmin):
+    list_display = ['user']
+    search_fields = ['user']
+    list_filter = ['user']
+
+    class Meta:
+        model = BlockList
+
+admin.site.register(BlockList, BlockListAdmin)

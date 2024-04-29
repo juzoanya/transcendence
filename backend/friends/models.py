@@ -65,5 +65,25 @@ class BlockList(models.Model):
     def __str__(self):
         return self.user.username
     
-    def block_user():
-        pass
+    def block_user(self, account):
+        if not account in self.blocked.all() and account != self.user:
+            self.blocked.add(account)
+            self.save()
+
+    def unblock_user(self, account):
+        if account in self.blocked.all() and account != self.user:
+            self.blocked.remove(account)
+
+    def is_blocked(self, account):
+        if account in self.blocked.all():
+            return True
+        return False
+    
+    @staticmethod
+    def is_either_blocked(auth_user, that_user):
+        block_list = BlockList.objects.get(user=auth_user)
+        other_block_list = BlockList.objects.get(user=that_user)
+
+        if block_list and block_list.is_blocked(that_user) or other_block_list and other_block_list.is_blocked(auth_user):
+            return True
+        return False

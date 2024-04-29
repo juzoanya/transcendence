@@ -9,4 +9,7 @@ urlpatterns = [
     path('request/accept/<friend_request_id>', views.accept_friend_request, name='friend-request-accept'),
     path('request/reject/<friend_request_id>', views.reject_friend_request, name='friend-request-reject'),
     path('request/cancel/<friend_request_id>', views.cancel_friend_request, name='friend-request-cancel'),
+    path('block/<user_id>', views.block_user, name='friend-block'),
+    path('unblock/<user_id>', views.unblock_user, name='friend-unblock'),
+    path('block-list', views.block_list_view, name='block-list'),
 ]
