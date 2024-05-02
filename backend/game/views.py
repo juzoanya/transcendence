@@ -94,7 +94,6 @@ def received_invites(request, *args, **kwargs):
                 'inviter': inviter.username,
                 'alias': player.alias,
                 'avatar': inviter.avatar.url,
-
             }
             invites_recieved.append(item)
         return JsonResponse({'invites': invites_recieved})
@@ -105,19 +104,71 @@ def received_invites(request, *args, **kwargs):
 @csrf_exempt
 @login_required
 def sent_invites(request, *args, **kwargs):
-    pass
+    user = request.user
+    invites_sent= []
+    if request.method == 'POST':
+        try:
+            invites = GameRequest.objects.filter(user=user)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+        
+        for invite in invites:
+            invitee = UserAccount.objects.get(username=invite.user)
+            player = Player.objects.get(user=invitee.user)
+            item = {
+                'invite_id': invite.pk,
+                'inviter': invitee.username,
+                'alias': player.alias,
+                'avatar': invitee.avatar.url,
+            }
+            invites_sent.append(item)
+        return JsonResponse({'invites': invites_sent})
+    else:
+        return JsonResponse({'success': False}, status=403)
 
 @csrf_exempt
 @login_required
 def game_invite_accept(request, *args, **kwargs):
-    pass
+    user = request.user
+    if request.method == 'POST':
+        invite_id = kwargs.get('invite_id')
+        if invite_id:
+            game_invite = GameRequest.objects.get(pk=invite_id)
+            if game_invite:
+                if game_invite.invitee == user:
+                    game_invite.accept()
+                    return JsonResponse({'success': True, 'message': 'Invite accepted.'}, status=200)
+                else:
+                    return JsonResponse({'success': False, 'message': 'You cannot access this feature'}, status=400)
+            else:
+                return JsonResponse({'success': False, 'message': 'This invite does not exist'}, status=400)
+        else:
+            return JsonResponse({'success': False, 'message': 'Invite is invalid.'}, status=400)
+    else:
+        return JsonResponse({'success': False}, status=403)
 
 
 
 @csrf_exempt
 @login_required
 def game_invite_reject(request, *args, **kwargs):
-    pass
+    user = request.user
+    if request.method == 'POST':
+        invite_id = kwargs.get('invite_id')
+        if invite_id:
+            game_invite = GameRequest.objects.get(pk=invite_id)
+            if game_invite:
+                if game_invite.user == user:
+                    game_invite.reject()
+                    return JsonResponse({'success': True, 'message': 'Invite rejected.'}, status=200)
+                else:
+                    return JsonResponse({'success': False, 'message': 'You cannot access this feature'}, status=400)
+            else:
+                return JsonResponse({'success': False, 'message': 'This invite does not exist'}, status=400)
+        else:
+            return JsonResponse({'success': False, 'message': 'Invite is invalid.'}, status=400)
+    else:
+        return JsonResponse({'success': False}, status=403)
 
 
 @csrf_exempt
