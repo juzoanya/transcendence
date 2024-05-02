@@ -52,3 +52,81 @@ def game_results(request, *args, **kwargs):
 @login_required
 def match_history(request, *args, **kwargs):
     pass
+
+
+@csrf_exempt
+@login_required
+def send_game_invite(request, *args, **kwargs):
+    user = request.user
+    user_id = kwargs.get('user_id')
+    if request.method == 'POST':
+        try:
+            invitee = UserAccount.objects.get(pk=user_id)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+        
+        try:
+            request = GameRequest.objects.create(user=user, invitee=invitee)
+            request.save()
+            return JsonResponse({'success': True, 'message': 'invitation was sent'}, status=200)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    else:
+        return JsonResponse({'success': False}, status=403)
+
+
+@csrf_exempt
+@login_required
+def received_invites(request, *args, **kwargs):
+    user = request.user
+    invites_recieved = []
+    if request.method == 'POST':
+        try:
+            invites = GameRequest.objects.filter(invitee=user)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+        
+        for invite in invites:
+            inviter = UserAccount.objects.get(username=invite.user)
+            player = Player.objects.get(user=inviter.user)
+            item = {
+                'invite_id': invite.pk,
+                'inviter': inviter.username,
+                'alias': player.alias,
+                'avatar': inviter.avatar.url,
+
+            }
+            invites_recieved.append(item)
+        return JsonResponse({'invites': invites_recieved})
+    else:
+        return JsonResponse({'success': False}, status=403)
+    
+
+@csrf_exempt
+@login_required
+def sent_invites(request, *args, **kwargs):
+    pass
+
+@csrf_exempt
+@login_required
+def game_invite_accept(request, *args, **kwargs):
+    pass
+
+
+
+@csrf_exempt
+@login_required
+def game_invite_reject(request, *args, **kwargs):
+    pass
+
+
+@csrf_exempt
+@login_required
+def game_invite_cancel(request, *args, **kwargs):
+    pass
+
+
+@csrf_exempt
+@login_required
+def create_tournament(request, *args, **kwargs):
+    pass

@@ -164,6 +164,50 @@ def profile_view(request, *args, **kwargs):
 		return render(request, 'user/profile-view.html', context)
 
 
+@csrf_exempt
+@login_required
+def profile_edit_view(request, *args, **kwargs):
+	user = request.user
+	user_id = kwargs.get('user_id')
+	try:
+		account = UserAccount.objects.get(pk=user_id)
+	except UserAccount.DoesNotExist:
+		return JsonResponse({'success': False, 'message': 'This profile does not exist'}, status=400)
+	
+	try:
+		player = Player.objects.get(user=account)
+	except Player.DoesNotExist:
+		return JsonResponse({})
+
+	
+	if request.method == 'POST':
+		if account == user:
+			first_name = request.POST.get('first_name')
+			last_name = request.POST.get('last_name')
+			alias = request.POST.get('alias')
+
+			avatar = None
+			if 'avatar' in request.FILES:
+				avatar = request.FILES['avatar']
+
+			if first_name:
+				account.first_name = first_name
+			if last_name:
+				account.last_name = last_name
+			if alias:
+				player.alias = alias
+			if avatar:
+				account.avatar = avatar
+			player.save()
+			account.save()
+		else:
+			return JsonResponse({})
+	else:
+		return JsonResponse({'success': False}, status=403)
+
+
+
+
 # @csrf_exempt
 @login_required
 def complete_profile(request):

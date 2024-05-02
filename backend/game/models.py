@@ -27,3 +27,65 @@ class GameResults(models.Model): #TODO: change on_delete to SET_DEFAULT and set 
                 self.winner = self.player_two
                 self.loser = self.player_one
         super().save(*args, **kwargs)
+
+
+
+class GameSchedule(models.Model):
+    player_one = models.ForeignKey(Player, related_name='player_one', on_delete=models.CASCADE)
+    player_two = models.ForeignKey(Player, related_name='player_two', on_delete=models.CASCADE)
+    is_active = models.BooleanField(blank=True, null=False, default=True)
+    scheduled = models.DateTimeField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+
+
+class GameRequest(models.Model):
+    user = models.ForeignKey(UserAccount, related_name='inviter', on_delete=models.CASCADE)
+    invitee = models.ForeignKey(UserAccount, related_name='invitee', on_delete=models.CASCADE)
+    is_active = models.BooleanField(blank=True, null=False, default=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def accept(self):
+        player_one = self.user
+        player_two = self.invitee
+        game = GameSchedule.objects.create(player_one=player_one, player_two=player_two)
+        game.save()
+        self.is_active = False
+        self.save()
+
+
+    def reject(self):
+        self.is_active = False
+        self.save()
+
+    def cancel(self):
+        self.is_active = False
+        self.save()
+
+
+
+
+class Tournament(models.Model):
+    class GameID(models.IntegerChoices):
+        Pong = 0, 'Pong'
+        Other = 1, 'Other'
+    name = models.CharField(max_length=30, default='Tournament')
+    game_id = models.IntegerField(choices=GameID.choices, null=True)
+    creator = models.ForeignKey(UserAccount, related_name='tournament_creator', on_delete=models.CASCADE)
+    players = models.ManyToManyField(Player, related_name='tournament_players')
+    nb_player = models.IntegerField(default=4)
+    nb_rounds = models.IntegerField(default=2)
+    status = models.CharField(max_length=20, default='waiting')
+    started = models.DateTimeField(null=True, blank=True)
+    ended = models.DateTimeField(null=True, blank=True)
+    winner = models.ForeignKey(UserAccount, related_name='tournament_winner', on_delete=models.CASCADE)
+
+
+
+class TournamentLobby(models.Model):
+    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
+    player_one = models.ForeignKey(UserAccount, related_name='tournament_as_player_one', on_delete=models.CASCADE)
+    player_two = models.ForeignKey(UserAccount, related_name='tournament_as_player_two', on_delete=models.CASCADE)
+    round = models.CharField(max_length=30, default='First Round')
+    status = models.CharField(max_length=20, default='not started')
+    result = models.CharField(max_length=50)

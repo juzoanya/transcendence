@@ -147,22 +147,6 @@ class Player(models.Model):
 #         pass
 
 
-# class Tournament(models.Model):
-#     class GameID(models.IntegerChoices):
-#         Pong = 0, 'Pong'
-#         Other = 1, 'Other'
-#     id = models.AutoField(primary_key=True)
-#     name = models.CharField(max_length=30, default='Tournament')
-#     game_id = models.IntegerField(choices=GameID.choices, null=True)
-#     creator = models.ForeignKey(UserAccount, related_name='tournament_creator', on_delete=models.CASCADE)
-#     players = models.ManyToManyField(Player)
-#     nb_player = models.IntegerField(default=4)
-#     nb_rounds = models.IntegerField(default=2)
-#     status = models.CharField(max_length=20, default='waiting')
-#     started = models.DateTimeField(null=True, blank=True)
-#     ended = models.DateTimeField(null=True, blank=True)
-#     winner = models.ForeignKey(UserAccount, related_name='tournament_winner', on_delete=models.CASCADE)
-
 
 # class TournamentInvite(models.Model):
 #     id = models.AutoField(primary_key=True)
@@ -171,16 +155,6 @@ class Player(models.Model):
 #     reciever = models.ForeignKey(UserAccount, related_name='invite_recieved', on_delete=models.CASCADE)
 #     status = models.CharField(max_length=20, default='pending')
 #     timestamp = models.DateTimeField(auto_now_add=True)
-
-
-# class TournamentLobby(models.Model):
-#     id = models.AutoField(primary_key=True)
-#     tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
-#     player_one = models.ForeignKey(UserAccount, related_name='tournament_as_player_one', on_delete=models.CASCADE)
-#     player_two = models.ForeignKey(UserAccount, related_name='tournament_as_player_two', on_delete=models.CASCADE)
-#     round = models.CharField(max_length=30, default='First Round')
-#     status = models.CharField(max_length=20, default='not started')
-#     result = models.CharField(max_length=50)
 
 
 
