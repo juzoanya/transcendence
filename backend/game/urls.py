@@ -8,4 +8,6 @@ urlpatterns = [
     path('invite/<user_id>', views.send_game_invite, name='game-invite'),
     path('invite/accept/<invite_id>', views.game_invite_accept, name='game-invite-accept'),
     path('invite/reject/<invite_id>', views.game_invite_reject, name='game-invite-reject'),
+    path('invite/cancel/<invite_id>', views.game_invite_reject, name='game-invite-reject'),
+    path('schedule', views.game_schedule, name='game-schedule'),
 ]

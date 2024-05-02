@@ -13,3 +13,24 @@ class GameResultAdmin(admin.ModelAdmin):
         model = GameResults
 
 admin.site.register(GameResults, GameResultAdmin)
+
+
+class GameRequestAdmin(admin.ModelAdmin):
+    list_display = ['user', 'invitee', 'is_active']
+    list_search = ['user', 'invitee']
+    list_filter = ['user', 'invitee', 'is_active']
+    readonly_fields = ['user', 'invitee', 'is_active']
+
+    class Meta:
+        model = GameRequest
+
+admin.site.register(GameRequest, GameRequestAdmin)
+
+
+class GameScheduleAdmin(admin.ModelAdmin):
+    list_display = ['player_one', 'player_two', 'is_active', 'scheduled', 'timestamp']
+
+    class Meta:
+        model = GameSchedule
+
+admin.site.register(GameSchedule, GameScheduleAdmin)

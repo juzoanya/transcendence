@@ -3,9 +3,34 @@ from django.db import models
 from user.models import *
 from user.utils import *
 
-# Create your models here.
 
-# deleted_user = UserAccount.objects.create_user(username='disabled', email='disabled@dis.dis', password='')
+
+class Tournament(models.Model):
+    class GameID(models.IntegerChoices):
+        Pong = 0, 'Pong'
+        Other = 1, 'Other'
+    name = models.CharField(max_length=30, default='Tournament')
+    game_id = models.IntegerField(choices=GameID.choices, null=True)
+    creator = models.ForeignKey(UserAccount, related_name='tournament_creator', on_delete=models.CASCADE)
+    players = models.ManyToManyField(Player, related_name='tournament_players')
+    nb_player = models.IntegerField(default=4)
+    nb_rounds = models.IntegerField(default=2)
+    status = models.CharField(max_length=20, default='waiting')
+    started = models.DateTimeField(null=True, blank=True)
+    ended = models.DateTimeField(null=True, blank=True)
+    winner = models.ForeignKey(UserAccount, related_name='tournament_winner', on_delete=models.CASCADE)
+
+
+
+class TournamentLobby(models.Model):
+    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
+    player_one = models.ForeignKey(UserAccount, related_name='tournament_as_player_one', on_delete=models.CASCADE)
+    player_two = models.ForeignKey(UserAccount, related_name='tournament_as_player_two', on_delete=models.CASCADE)
+    round = models.CharField(max_length=30, default='First Round')
+    status = models.CharField(max_length=20, default='not started')
+    result = models.CharField(max_length=50)
+
+
 
 class GameResults(models.Model): #TODO: change on_delete to SET_DEFAULT and set user to disbaled user
     game_id = models.CharField(max_length=10, null=False)
@@ -46,13 +71,12 @@ class GameRequest(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def accept(self):
-        player_one = self.user
-        player_two = self.invitee
+        player_one = Player.objects.get(user=self.user)
+        player_two = Player.objects.get(user=self.invitee)
         game = GameSchedule.objects.create(player_one=player_one, player_two=player_two)
         game.save()
         self.is_active = False
         self.save()
-
 
     def reject(self):
         self.is_active = False
@@ -65,27 +89,4 @@ class GameRequest(models.Model):
 
 
 
-class Tournament(models.Model):
-    class GameID(models.IntegerChoices):
-        Pong = 0, 'Pong'
-        Other = 1, 'Other'
-    name = models.CharField(max_length=30, default='Tournament')
-    game_id = models.IntegerField(choices=GameID.choices, null=True)
-    creator = models.ForeignKey(UserAccount, related_name='tournament_creator', on_delete=models.CASCADE)
-    players = models.ManyToManyField(Player, related_name='tournament_players')
-    nb_player = models.IntegerField(default=4)
-    nb_rounds = models.IntegerField(default=2)
-    status = models.CharField(max_length=20, default='waiting')
-    started = models.DateTimeField(null=True, blank=True)
-    ended = models.DateTimeField(null=True, blank=True)
-    winner = models.ForeignKey(UserAccount, related_name='tournament_winner', on_delete=models.CASCADE)
 
-
-
-class TournamentLobby(models.Model):
-    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
-    player_one = models.ForeignKey(UserAccount, related_name='tournament_as_player_one', on_delete=models.CASCADE)
-    player_two = models.ForeignKey(UserAccount, related_name='tournament_as_player_two', on_delete=models.CASCADE)
-    round = models.CharField(max_length=30, default='First Round')
-    status = models.CharField(max_length=20, default='not started')
-    result = models.CharField(max_length=50)

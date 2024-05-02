@@ -1,4 +1,5 @@
 import json
+from django.db.models import Q
 from django.conf import settings
 from django.shortcuts import render, redirect
 from user.models import *
@@ -64,13 +65,20 @@ def send_game_invite(request, *args, **kwargs):
             invitee = UserAccount.objects.get(pk=user_id)
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=400)
-        
-        try:
-            request = GameRequest.objects.create(user=user, invitee=invitee)
-            request.save()
-            return JsonResponse({'success': True, 'message': 'invitation was sent'}, status=200)
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+        check_request = GameRequest.objects.get(user=user, invitee=invitee, is_active=True)
+        if check_request:
+            return JsonResponse({'success': False, 'message': 'Duplicate invite not permitted'}, status=400)
+
+        if BlockList.is_either_blocked(user, invitee) == False:
+            try:
+                request = GameRequest.objects.create(user=user, invitee=invitee)
+                request.save()
+                return JsonResponse({'success': True, 'message': 'invitation was sent'}, status=200)
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': str(e)}, status=400)
+        else:
+            return JsonResponse({'success': False, 'message': 'Blocklist: cannot invite user'}, status=400)
     else:
         return JsonResponse({'success': False}, status=403)
 
@@ -88,7 +96,7 @@ def received_invites(request, *args, **kwargs):
         
         for invite in invites:
             inviter = UserAccount.objects.get(username=invite.user)
-            player = Player.objects.get(user=inviter.user)
+            player = Player.objects.get(user=inviter)
             item = {
                 'invite_id': invite.pk,
                 'inviter': inviter.username,
@@ -96,7 +104,7 @@ def received_invites(request, *args, **kwargs):
                 'avatar': inviter.avatar.url,
             }
             invites_recieved.append(item)
-        return JsonResponse({'invites': invites_recieved})
+        return JsonResponse({'data': invites_recieved})
     else:
         return JsonResponse({'success': False}, status=403)
     
@@ -113,16 +121,16 @@ def sent_invites(request, *args, **kwargs):
             return JsonResponse({'success': False, 'message': str(e)}, status=400)
         
         for invite in invites:
-            invitee = UserAccount.objects.get(username=invite.user)
-            player = Player.objects.get(user=invitee.user)
+            invitee = UserAccount.objects.get(username=invite.invitee)
+            player = Player.objects.get(user=invitee)
             item = {
                 'invite_id': invite.pk,
-                'inviter': invitee.username,
+                'invitee': invitee.username,
                 'alias': player.alias,
                 'avatar': invitee.avatar.url,
             }
             invites_sent.append(item)
-        return JsonResponse({'invites': invites_sent})
+        return JsonResponse({'data': invites_sent})
     else:
         return JsonResponse({'success': False}, status=403)
 
@@ -181,3 +189,45 @@ def game_invite_cancel(request, *args, **kwargs):
 @login_required
 def create_tournament(request, *args, **kwargs):
     pass
+
+
+
+@csrf_exempt
+@login_required
+def game_schedule(request, *args, **kwargs):
+    user = request.user
+    schedules = []
+    if request.method == 'POST':
+        player = Player.objects.get(user=user)
+        if player:
+            try:
+                game_list = GameSchedule.objects.filter(Q(player_one=player) | Q(player_two=player), is_active=True)
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': str(e)}, status=400)
+        else:
+            return JsonResponse({'success': False, 'message': 'Player does not exist'}, status=400)
+
+        for game in game_list:
+            player_one = UserAccount.objects.get(username=game.player_one)
+            ply_one_ply = Player.objects.get(user=player_one)
+            player_two = UserAccount.objects.get(username=game.player_two)
+            ply_two_ply = Player.objects.get(user=player_two)
+            items = {
+                'schedule_id': game.pk,
+                'player_one': {
+                    'id': player_one.pk,
+                    'username': player_one.username,
+                    'avatar': player_one.avatar.url,
+                    'alias': ply_one_ply.alias,
+                },
+                'player_two': {
+                    'id': player_two.pk,
+                    'username': player_two.username,
+                    'avatar': player_two.avatar.url,
+                    'alias': ply_two_ply.alias
+                }
+            }
+            schedules.append(items)
+        return JsonResponse({'data': schedules}, status=200)
+    else:
+        return JsonResponse({'success': False}, status=403)
