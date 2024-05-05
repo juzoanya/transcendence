@@ -128,6 +128,11 @@ def profile_view(request, *args, **kwargs):
 
 	if BlockList.is_either_blocked(user, account):
 		return JsonResponse({'success': False, 'message': 'Blocked: You cannot view this account'}, status=400)
+	
+	try:
+		player = Player.objects.get(user=account)
+	except Exception as e:
+		return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 	if account:
 		data = {
@@ -138,7 +143,11 @@ def profile_view(request, *args, **kwargs):
 			'last_name': account.last_name,
 			'avatar': account.avatar.url,
 			'last_login': account.last_login,
-			'date_joined': account.date_joined
+			'date_joined': account.date_joined,
+			'alias': player.alias,
+			'games_played': player.games_played,
+			'wins': player.wins,
+			'losses': player.losses
 		}
 
 		is_self = True
