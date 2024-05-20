@@ -75,6 +75,23 @@
 	</div>	
 </div>
 
+<div class="container-fluid">
+	<div class="row">
+	  <div class="col-md-4 invite-div">
+		<h4>Play Invites</h4>
+		<hr>
+		<div id="invite-requests">
+		</div>
+	  </div>
+	  <div class="col-md-8 stats-div">
+		<h4>Player Stats</h4>
+		<hr>
+		<div id="plot-container">
+		</div>
+	  </div>
+	</div>
+</div>
+
 
 <div class="modal fade" id="profileOverlay" tabindex="-1" aria-labelledby="completeProfileModalLabel" aria-hidden="true">
 	<div class="modal-dialog">
@@ -104,6 +121,85 @@
 <!-- Bootstrap Bundle with Popper -->
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+
+
+<script>
+	fetch('/game/stats')
+	  .then(response => response.json())
+	  .then(res => {
+		const inviteRequestsDiv = document.getElementById('stats-request');
+		var base64String = res.data
+        // Decode base64 string to image
+        var img = new Image()
+        img.src = 'data:image/png;base64,' + base64String;
+
+        // Display the image in the plot-container div
+        var plotContainer = document.getElementById('plot-container');
+        plotContainer.appendChild(img);
+		// data.forEach(invite => {
+		//   const inviteHtml = `
+		// 	<div class="stats-request">
+			  
+		// 	  <button class="btn btn-secondary">Decline</button>
+		// 	</div>
+		//   `;
+		//   inviteRequestsDiv.innerHTML += inviteHtml;
+		// });
+	  })
+	  .catch(error => console.error('Error fetching invite requests:', error));
+</script>
+
+
+<script>
+	// Fetch invite requests from Django backend
+	fetch('/game/invites-recieved')
+	  .then(response => response.json())
+	  .then(res => {
+		const inviteRequestsDiv = document.getElementById('invite-requests');
+		data = res.data
+		data.forEach(invite => {
+		  const inviteHtml = `
+			<div class="invite-request">
+			  <p>${data.alias} wants to play ${data.game_id} with you!</p>
+			  <button class="btn btn-primary" id="acceptInvite">Accept</button>
+			  <button class="btn btn-secondary">Decline</button>
+			</div>
+		  `;
+		  inviteRequestsDiv.innerHTML += inviteHtml;
+		});
+	  })
+	  .catch(error => console.error('Error fetching invite requests:', error));
+
+
+	document.getElementById('acceptInvite').addEventListener('click', function(event) {
+		event.preventDefault(); // Prevent default form submission
+		formData = {
+			'game_id': 1,
+			'game_mode': '1v1'
+		}
+				
+		fetch('/game/invite/accept/3', {
+			method: 'POST',
+			headers: {
+				'X-CSRFToken': getCookie('csrftoken') // Ensure to include CSRF token if using Django's CSRF protection
+			},
+			body: formData.stringify,
+		})
+		.then(response => {
+		if (response.ok) {
+			// If POST request is successful, hide the modal
+			profileModal.hide();
+			alert('Profile saved successfully!');
+		} else {
+			alert('Failed to save profile');
+		}
+		})
+		.catch(error => {
+		console.error('Error saving profile:', error);
+		alert('An error occurred while saving profile');
+		});
+	});
+  </script>
 
 <script>
 

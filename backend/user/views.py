@@ -52,7 +52,7 @@ def register_view(request):
 	else:
 		return JsonResponse({'success': False}, status=403)
 
-# @csrf_exempt
+@csrf_exempt
 def login_view(request):
 
 	if request.method == "GET":

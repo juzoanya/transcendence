@@ -77,6 +77,8 @@ class Player(models.Model):
     games_played = models.PositiveIntegerField(default=0)
     wins = models.PositiveIntegerField(default=0)
     losses = models.PositiveIntegerField(default=0)
+    win_loss_margin = models.JSONField(default=list)
+    xp = models.PositiveIntegerField(default=10)
 
 
     def __str__(self):

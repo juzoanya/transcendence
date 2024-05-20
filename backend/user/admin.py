@@ -14,7 +14,7 @@ class AccountAdmin(UserAdmin):
     fieldsets =()
 
 class PlayerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'alias', 'games_played', 'wins', 'losses')
+    list_display = ('user', 'alias', 'games_played', 'wins', 'losses', 'win_loss_margin')
     search_fields = ('user', 'alias')
     readonly_fields = ('id', 'games_played', 'wins', 'losses')
 
