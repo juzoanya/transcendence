@@ -18,12 +18,21 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from public_chat.consumers import *
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.auth import AuthMiddlewareStack
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('user.urls')),
     path('friend/', include('friends.urls')),
     path('game/', include('game.urls')),
+    path('public_chat/', include('public_chat.urls')),
+
+    # path('ws/chat/<str:room_id>/', PublicChatConsumer.as_asgi()),
+
+#     path('ws/', URLRouter(public_chat.routing.websocket_urlpatterns)),
 ]
 
 

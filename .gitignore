@@ -4,4 +4,3 @@ Pipfile
 Pipfile.lock
 backend/db.sqlite3
 static/media
-requirements.txt
