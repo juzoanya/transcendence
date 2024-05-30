@@ -4,3 +4,5 @@ Pipfile
 Pipfile.lock
 backend/db.sqlite3
 static/media
+backend/pong_server/from_max
+*__pycache__

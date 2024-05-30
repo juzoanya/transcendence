@@ -465,8 +465,10 @@ def player_stats(request, *args, **kwargs):
 			elif item < 0:
 				loss_margin.append(item)
 
-		avg_win_margin = sum(win_margin) / len(win_margin)
-		avg_loss_margin = sum(loss_margin) / len(loss_margin)
+		if win_margin != 0 and len(win_margin) != 0:
+			avg_win_margin = sum(win_margin) / len(win_margin)
+		if loss_margin != 0 and len(loss_margin) != 0:
+			avg_loss_margin = sum(loss_margin) / len(loss_margin)
 		print(f"AVG_WINS: {avg_win_margin}, AVG_LOSS: {avg_loss_margin}")
 
 

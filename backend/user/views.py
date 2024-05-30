@@ -169,7 +169,7 @@ def profile_view(request, *args, **kwargs):
 		context = {
 			'json_data': json.dumps(data, cls=DjangoJSONEncoder)
 		}
-		return JsonResponse(data, safe=False)
+		# return JsonResponse(data, safe=False)
 		return render(request, 'user/profile-view.html', context)
 
 
