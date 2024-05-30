@@ -26,7 +26,7 @@ class PlayerConsumer(AsyncWebsocketConsumer):
             if game_schedule is None or not await self.is_user_part_of_game(game_schedule, self.user):
                 await self.close()
                 return
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+
             self.game_schedule = game_schedule
             self.room_group_name = f'game_{self.schedule_id}'
 
@@ -47,14 +47,14 @@ class PlayerConsumer(AsyncWebsocketConsumer):
                 pong_game = game_manager.add_game(settings, self.channel_layer, self.room_group_name)
 
             
-            logger.error(f"my group name: {self.room_group_name}")
-            logger.error(f"current game connected players: {pong_game.players_connected}")
-            pong_game.players_connected += 1
-            settings = pong_game.settings
-            await self.pong_message.send_to_channel_layer(
-                MessageType.INIT_GAME,
-                {'settings': settings.to_dict()}
-            )
+            # logger.error(f"my group name: {self.room_group_name}")
+            # logger.error(f"current game connected players: {pong_game.players_connected}")
+            # pong_game.players_connected += 1
+            # settings = pong_game.settings
+            # await self.pong_message.send_to_channel_layer(
+            #     MessageType.INIT_GAME,
+            #     {'settings': settings.to_dict()}
+            # )
             await self.pong_message.send_to_channel_layer(
                 MessageType.GAME_UPDATE,
                 {'state': pong_game.get_game_state()}
