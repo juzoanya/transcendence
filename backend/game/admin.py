@@ -38,8 +38,18 @@ admin.site.register(GameSchedule, GameScheduleAdmin)
 
 class TournamentAdmin(admin.ModelAdmin):
     list_display = ['name', 'mode', 'creator', 'nb_player', 'status', 'winner']
+    readonly_fields = ['id']
 
     class Meta:
         model = Tournament
 
 admin.site.register(Tournament, TournamentAdmin)
+
+class TournamentPlayerAdmin(admin.ModelAdmin):
+    list_display = ['tournament', 'player', 'xp', 'round']
+    list_filter = ['tournament']
+
+    class Meta:
+        model = TournamentPlayer
+
+admin.site.register(TournamentPlayer, TournamentPlayerAdmin)
