@@ -82,12 +82,15 @@ class GameRequest(models.Model):
 	user = models.ForeignKey(UserAccount, related_name='inviter', on_delete=models.CASCADE)
 	invitee = models.ForeignKey(UserAccount, related_name='invitee', on_delete=models.CASCADE)
 	is_active = models.BooleanField(blank=True, null=False, default=True)
+	status = models.CharField(max_length=20, default='pending')
 	timestamp = models.DateTimeField(auto_now_add=True)
 
 	def accept(self):
 		player_one = Player.objects.get(user=self.user)
 		player_two = Player.objects.get(user=self.invitee)
-		if self.game_mode != 'tournament' and self.tournament != None:
+		if self.game_mode == 'tournament' and self.tournament != None:
+			pass # what happens when tournament invite is acccepted?
+		else:
 			game = GameSchedule.objects.create(
 				player_one=player_one,
 				player_two=player_two,
@@ -96,17 +99,24 @@ class GameRequest(models.Model):
 				tournament=self.tournament
 			)
 			game.save()
-			self.is_active = False
-			self.save()
-		else:
-			pass # define what happens when a tournament invite is accepted 
+		self.is_active = False
+		self.status = 'accepted'
+		self.save()
 
 	def reject(self):
 		self.is_active = False
+		self.status = 'rejected'
+		if self.game_mode == 'tournament' and self.tournament != None:
+			user = UserAccount.objects.get(username=self.invitee)
+			self.tournament.players.remove(user)
 		self.save()
 
 	def cancel(self):
 		self.is_active = False
+		self.status = 'cancelled'
+		if self.game_mode == 'tournament' and self.tournament != None:
+			user = UserAccount.objects.get(username=self.invitee)
+			self.tournament.players.remove(user)
 		self.save()
 
 

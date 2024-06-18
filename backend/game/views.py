@@ -433,7 +433,33 @@ def create_tournament(request, *args, **kwargs):
 			return JsonResponse({'success': True, 'message': 'Tournament created'}, status=200)
 		except Exception as e:
 			return JsonResponse({'success': False, 'message': str(e)}, status=400)
-	return JsonResponse({'success': False}, status=403)
+	return JsonResponse({'success': False}, status=405)
+
+
+@csrf_exempt
+@login_required
+def tournament_list_view(request, *args, **kwargs):
+	user = request.user
+	if request.method == 'GET':
+		tournament_list = []
+		try:
+			tournaments = Tournament.objects.all()
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
+		for tournament in tournaments:
+			item = {
+				'id': tournament.id
+			}
+			tournament_list.append(item)
+		return JsonResponse({'success': True, 'message': tournament_list}, status=200)
+	else:
+		return JsonResponse({'success': False}, status=405)
+
+
+@csrf_exempt
+@login_required
+def tournament_detailed_view(request, *args, **kwargs):
+	pass
 
 
 

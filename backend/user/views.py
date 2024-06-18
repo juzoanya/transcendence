@@ -43,11 +43,14 @@ def register_view(request):
 			return JsonResponse({'success': False, 'error':'Username already exists'}, status=400)
 		if UserAccount.objects.filter(email=email).exists():
 			return JsonResponse({'success': False, 'error':'email already exists'}, status=400)
-		
-		user = UserAccount.objects.create_user(username, email, password)
-		player = Player.objects.create(user=user)
-		friend_list = FriendList.objects.create(user=user)
-		return JsonResponse({'success': True, 'message':'Registration Successful'}, status=200)
+		try:
+			user = UserAccount.objects.create_user(username, email, password)
+			Player.objects.create(user=user)
+			FriendList.objects.create(user=user)
+			BlockList.objects.create(user=user)
+			return JsonResponse({'success': True, 'message':'Registration Successful'}, status=200)
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
 	# return render(request, 'user/register.html')
 	else:
 		return JsonResponse({'success': False}, status=403)
@@ -169,8 +172,8 @@ def profile_view(request, *args, **kwargs):
 		context = {
 			'json_data': json.dumps(data, cls=DjangoJSONEncoder)
 		}
-		# return JsonResponse(data, safe=False)
-		return render(request, 'user/profile-view.html', context)
+		return JsonResponse(data, safe=False)
+		# return render(request, 'user/profile-view.html', context)
 
 
 @csrf_exempt

@@ -76,7 +76,7 @@ def friend_list(request, *args, **kwargs):
 @login_required
 def accept_friend_request(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'GET':
+	if request.method == 'POST':
 		friend_request_id = kwargs.get('friend_request_id')
 		if friend_request_id:
 			friend_request = FriendRequest.objects.get(pk=friend_request_id)
@@ -98,7 +98,7 @@ def accept_friend_request(request, *args, **kwargs):
 @login_required
 def reject_friend_request(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'GET':
+	if request.method == 'POST':
 		friend_request_id = kwargs.get('friend_request_id')
 		if friend_request_id:
 			friend_request = FriendRequest.objects.get(pk=friend_request_id)
@@ -215,7 +215,7 @@ def send_friend_request(request, *args, **kwargs):
 		else:
 			return JsonResponse({'success': False, 'message': 'User does not exist'}, status=404)
 	else:
-		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
+		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=405)
 	
 
 @csrf_exempt
@@ -236,7 +236,7 @@ def remove_friend(request, *args, **kwargs):
 		else:
 			return JsonResponse({'success': False, 'message': 'Bad request'}, status=400)
 	else:
-		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
+		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=405)
 
 
 @csrf_exempt
@@ -256,7 +256,7 @@ def block_user(request, *args, **kwargs):
 		else:
 			return JsonResponse({'success': False, 'message': 'Bad request'}, status=400)
 	else:
-		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
+		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=405)
 		
 
 
@@ -278,7 +278,7 @@ def unblock_user(request, *args, **kwargs):
 		else:
 			return JsonResponse({'success': False, 'message': 'Bad request'}, status=400)
 	else:
-		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=403)
+		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=405)
 	
 
 @csrf_exempt
