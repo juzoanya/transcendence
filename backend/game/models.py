@@ -18,12 +18,16 @@ class Tournament(models.Model):
 	nb_player = models.IntegerField(null=True, blank=True)
 	nb_rounds = models.IntegerField(null=True, blank=True)
 	status = models.CharField(max_length=20, default='waiting')
+	stage = models.CharField(max_length=20, null=True, blank=True)
 	started = models.DateTimeField(null=True, blank=True)
 	ended = models.DateTimeField(null=True, blank=True)
 	winner = models.ForeignKey(UserAccount, related_name='tournament_winner', on_delete=models.SET_NULL, null=True, blank=True)
 
 	def __str__(self):
 		return self.name
+	
+	def update(self):
+		pass
 	
 	def matchmaking(self):
 		tournament_players = TournamentPlayer.objects.filter(tournament=self)
@@ -41,7 +45,6 @@ class Tournament(models.Model):
 	def round_robin(self, players):
 		pass
 
-
 	def single_elimination(self, players):
 		if len(players) > 1:
 			for i in range(0, len(players) // 2):
@@ -52,7 +55,6 @@ class Tournament(models.Model):
 					player_one=players[i].player,
 					player_two=players[-(i + 1)].player
 				)
-
 
 	def double_elimination(self, players):
 		pass
