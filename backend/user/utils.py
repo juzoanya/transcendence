@@ -30,11 +30,12 @@ def calculate_user_xp(margin, winner):
         range(4, 7): 2,
         range(7, 10): 3
     }
-
     xp = 0
     for margin_range, xp_value in xp_map.items():
         if margin in margin_range:
             xp = xp_value if winner else -xp_value
     return xp
 
+def get_minimal_user_details(user):
+    pass
     

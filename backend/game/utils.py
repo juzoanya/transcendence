@@ -17,6 +17,44 @@ def send_invite(user, invitee, game_id, game_mode, tournament):
         except Exception as e:
             return str(e)
     
+def parse_results(schedule_id, score_one, score_two): #TODO send user xp gained ot lost + winner to consumer
+    try:
+        game = GameSchedule.objects.get(id=schedule_id, is_active=True)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': 'Game Schedule: '+str(e)}, status=400)
+    if game.player_one.user == game.player_two.user:
+        return JsonResponse({'success': False, 'message': 'Player fields cannot be the same.'}, status=400)
+    
+    try:
+        result = GameResults.objects.create(
+		game_id=game.game_id,
+		game_mode=game.game_mode,
+		tournament=game.tournament,
+		player_one=game.player_one.user,
+		player_two=game.player_two.user,
+		player_one_score=score_one,
+		player_two_score=score_two
+		)
+        result.save()
+    except Exception as e:
+        return {'success': False, 'message': 'Game Results: '+str(e)}, 400
+    
+    game.is_active = False
+    game.save()
+    if result.winner and result.loser:
+        xp_calculation(result, score_one, score_two)
+    else:
+        return {'success': False, 'message': 'Internal server error'}, 500
+    if game.game_mode == 'tournament':
+        update_tournament(result.tournament)
+    
+    # try:
+    #     player = Player.objects.get(user=user)
+    #     data = model_object_serializer(player)
+    # except Exception as e:
+    #     return {'success': False, 'message': str(e)}, 400
+    return {'success': True, 'message': 'record created'}, 200
+
 
 def tournament_details(tournament):
     players = []
@@ -58,6 +96,36 @@ def tournament_details(tournament):
         }
         fixtures.append(item)
     details['schedules'] = fixtures
+    results = []
+    games_played = GameResults.objects.filter(tournament=tournament)
+    for game in games_played:
+        ply_one_user_acc = UserAccount.objects.get(username=game.player_one)
+        ply_two_user_acc = UserAccount.objects.get(username=game.player_two)
+        item = {
+			'match_id': game.pk,
+			'game_id': game.game_id,
+			'game_mode': game.game_mode,
+			'tournament': game.tournament,
+			'player_one': {
+				'id': ply_one_user_acc.pk,
+				'username': ply_one_user_acc.username,
+				'avatar': ply_one_user_acc.avatar.url,
+				'alias': Player.objects.get(user=ply_one_user_acc).alias,
+			},
+			'player_two': {
+				'id': ply_two_user_acc.pk,
+				'username': ply_two_user_acc.username,
+				'avatar': ply_two_user_acc.avatar.url,
+				'alias': Player.objects.get(user=ply_two_user_acc).alias
+			},
+			'player_one_score': game.player_one_score,
+			'player_two_score': game.player_two_score,
+			'date': game.timestamp,
+			'winner': Player.objects.get(user=game.winner).alias
+        }
+        results.append(item)
+    details['results'] = results
+    #TODO: pass also the leaderboard
     return details
 
 
@@ -67,3 +135,58 @@ def tournament_player_creator(user, tournament):
     except Exception as e:
         tournament.delete()
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+def xp_calculation(result, score_one, score_two):
+    try:
+        winner_player = Player.objects.get(user=result.winner)
+        winner_player.games_played = winner_player.games_played + 1
+        winner_player.wins = winner_player.wins + 1
+        winner_player.win_loss_margin.append(max(score_one, score_two) - min(score_one, score_two))
+        winner_xp = calculate_user_xp(max(score_one, score_two) - min(score_one, score_two), True)
+        if result.tournament != None and result.game_mode == 'tournament':
+            t_player = TournamentPlayer.objects.get(player=winner_player, tournament=result.tournament)
+            t_player.xp += winner_xp
+            t_player.num_round += 1
+            t_player.save()
+        else:
+            winner_player.xp += winner_xp
+        winner_player.save()
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    try:
+        loser_player = Player.objects.get(user=result.loser)
+        loser_player.games_played = loser_player.games_played + 1
+        loser_player.losses = loser_player.losses + 1
+        loser_player.win_loss_margin.append(min(score_one, score_two) - max(score_one, score_two))
+        loser_xp = calculate_user_xp(max(score_one, score_two) - min(score_one, score_two), False)
+        if result.tournament != None and result.game_mode == 'tournament':
+            t_player = TournamentPlayer.objects.get(player=loser_player, tournament=result.tournament)
+            t_player.xp += loser_xp
+            t_player.save()
+        else:
+            loser_player.xp += loser_xp
+        loser_player.save()
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    
+def update_tournament(tournament):
+    try:
+        schedules = GameSchedule.objects.filter(tournament=tournament, is_active=True)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': 'Game Schedule: '+str(e)}, status=400)
+    if len(schedules) == 0:
+        tournament.matchmaking()
+        tournament.update()
+
+def tournament_leaderboard(tournament):
+    leaderboard = []
+    ordered_player = (TournamentPlayer.objects.filter(tournament=tournament)
+                   .select_related('player')
+                   .order_by('-xp')
+                   )
+    if ordered_player:
+        for player in ordered_player:
+            pass
+    
+    return leaderboard

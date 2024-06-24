@@ -29,75 +29,26 @@ def game_results(request, *args, **kwargs):
 	if request.method == 'POST':
 		data = json.loads(request.body)
 		schedule_id = data.get('schedule_id')
-		game_id = data.get('game_id')
-		game_mode = data.get('game_mode')
-		tournament = data.get('tournament')
-		duration = data.get('duration')
-		player_one = data.get('player_one')
-		player_two = data.get('player_two')
-		score_one = player_one['score']
-		score_two = player_two['score']
-
-		if not player_one or not player_two:
-			return JsonResponse({'success': False, 'message': 'Player field cannot be empty.'}, status=400)
-
-		try:
-			user_one = UserAccount.objects.get(username=Player.objects.get(alias=player_one['alias']))
-			user_two = UserAccount.objects.get(username=Player.objects.get(alias=player_two['alias']))
-		except Exception as e:
-			return JsonResponse({'success': False, 'message': str(e)}, status=400)
-		
-		if user_one == user_two:
-			return JsonResponse({'success': False, 'message': 'Player fields cannot be the same.'}, status=400)
-
-		try:
-			result = GameResults.objects.create(
-				game_id=game_id,
-				game_mode=game_mode,
-				tournament=tournament,
-				player_one=user_one,
-				player_two=user_two,
-				player_one_score=score_one,
-				player_two_score=score_two
-			)
-			result.save()
-		except Exception as e:
-			return JsonResponse({'success': False, 'message': str(e)}, status=400)
-
-		if result.winner and result.loser:
-			try:
-				winner_player = Player.objects.get(user=result.winner)
-				winner_player.games_played = winner_player.games_played + 1
-				winner_player.wins = winner_player.wins + 1
-				winner_player.win_loss_margin.append(max(score_one, score_two) - min(score_one, score_two))
-				winner_xp = calculate_user_xp(max(score_one, score_two) - min(score_one, score_two), True)
-				winner_player.xp += winner_xp
-				winner_player.save()
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=400)
-
-			try:
-				loser_player = Player.objects.get(user=result.loser)
-				loser_player.games_played = loser_player.games_played + 1
-				loser_player.losses = loser_player.losses + 1
-				loser_player.win_loss_margin.append(min(score_one, score_two) - max(score_one, score_two))
-				loser_xp = calculate_user_xp(max(score_one, score_two) - min(score_one, score_two), False)
-				loser_player.xp += loser_xp
-				loser_player.save()
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=400)
-		else:
-			return JsonResponse({'success': False, 'message': 'Internal server error'}, status=500)
-
-		try:
-			player = Player.objects.get(user=user)
-			data = model_object_serializer(player)
-		except Exception as e:
-			return JsonResponse({'success': False, 'message': str(e)}, status=400)
-		
-		return JsonResponse({'success': True, 'message': 'record created', 'data': data}, status=200)
+		score_one = data.get('score_one')
+		score_two = data.get('score_two')
+		response = parse_results(schedule_id, score_one, score_two)
+		print(f'-------> {response}')
+		message = response[0]
+		status = response[-1]
+		return JsonResponse(message, status=status)
 	else:
 		return JsonResponse({'success': False}, status=403)
+
+@csrf_exempt
+@login_required
+def match(request, *args, **kwargs):
+	user = request.user
+	t_id = kwargs.get('tournament_id')
+	if t_id:
+		tournament = Tournament.objects.get(id=t_id)
+		update_tournament(tournament)
+		return JsonResponse({'success': True}, status=200)
+	return JsonResponse({'success': False}, status=500)
 
 
 
@@ -123,18 +74,6 @@ def send_game_invite(request, *args, **kwargs):
 		if BlockList.is_either_blocked(user, invitee) == False:
 			response = send_invite(user, invitee, game_id, game_mode, tournament)
 			return JsonResponse({'success': True, 'message': response}, status=200)
-			# try:
-			# 	request = GameRequest.objects.create(
-			# 		user=user, 
-			# 		invitee=invitee, 
-			# 		game_id=game_id, 
-			# 		game_mode=game_mode,
-			# 		tournament=tournament
-			# 	)
-			# 	request.save()
-			# 	return JsonResponse({'success': True, 'message': 'invitation was sent'}, status=200)
-			# except Exception as e:
-			# 	return JsonResponse({'success': False, 'message': str(e)}, status=400)
 		else:
 			return JsonResponse({'success': False, 'message': 'Blocklist: cannot invite user'}, status=400)
 	else:
@@ -433,9 +372,7 @@ def create_tournament(request, *args, **kwargs):
 						else:
 							tournament.delete()
 							return JsonResponse({'success': False, 'message': 'Blocklist: cannot invite user'}, status=400)
-				# print(f'--------->>>>>>>> 000000')
 				tournament_player_creator(user, tournament)
-				# print(f'--------->>>>>>>> 111111')
 				return JsonResponse({'success': True, 'message': 'Tournament created'}, status=200)
 			except Exception as e:
 				return JsonResponse({'success': False, 'message': str(e)}, status=400)
