@@ -2,6 +2,7 @@ from typing import Iterable
 from django.db import models
 from user.models import *
 from user.utils import *
+from django.db.models import Max
 
 
 
@@ -14,23 +15,63 @@ class Tournament(models.Model):
 	mode = models.CharField(max_length=50, blank=False)
 	creator = models.ForeignKey(UserAccount, related_name='tournament_creator', on_delete=models.CASCADE)
 	players = models.ManyToManyField(Player, related_name='tournament_players')
-	nb_player = models.IntegerField()
-	nb_rounds = models.IntegerField()
+	nb_player = models.IntegerField(null=True, blank=True)
+	nb_rounds = models.IntegerField(null=True, blank=True)
 	status = models.CharField(max_length=20, default='waiting')
 	started = models.DateTimeField(null=True, blank=True)
 	ended = models.DateTimeField(null=True, blank=True)
 	winner = models.ForeignKey(UserAccount, related_name='tournament_winner', on_delete=models.SET_NULL, null=True, blank=True)
 
+	def __str__(self):
+		return self.name
+	
+	def matchmaking(self):
+		tournament_players = TournamentPlayer.objects.filter(tournament=self)
+		max_round = tournament_players.aggregate(Max('num_round'))['num_round__max']
+		players = list(tournament_players.filter(num_round=max_round))
+		if self.status != 'finished':
+			mode = self.mode
+			if mode == 'round robin':
+				self.round_robin(players)
+			elif mode == 'single elimination':
+				self.single_elimination(players)
+			elif mode == 'double elimination':
+				self.double_elimination(players)
+	
+	def round_robin(self, players):
+		pass
+
+
+	def single_elimination(self, players):
+		if len(players) > 1:
+			for i in range(0, len(players) // 2):
+				schedule = GameSchedule.objects.create(
+					game_id=self.game_id,
+					game_mode='tournament',
+					tournament=self,
+					player_one=players[i].player,
+					player_two=players[-(i + 1)].player
+				)
+
+
+	def double_elimination(self, players):
+		pass
+
+
+
+class TournamentPlayer(models.Model):
+	tournament = models.ForeignKey(Tournament, related_name='tournament_players', on_delete=models.CASCADE)
+	player = models.ForeignKey(Player, related_name='player_tournaments', on_delete=models.CASCADE)
+	xp = models.IntegerField(default=0)
+	num_round = models.IntegerField(default=0)
+	round = models.CharField(max_length=30, default='First Round')
+
 
 
 class TournamentLobby(models.Model):
 	tournament = models.ForeignKey(Tournament, related_name='tournament_tl', on_delete=models.CASCADE)
-	player_one = models.ForeignKey(UserAccount, related_name='tournament_as_player_one', on_delete=models.CASCADE)
-	player_two = models.ForeignKey(UserAccount, related_name='tournament_as_player_two', on_delete=models.CASCADE)
-	round = models.CharField(max_length=30, default='First Round')
-	status = models.CharField(max_length=20, default='not started')
-	result = models.CharField(max_length=50)
-
+	winners = models.ManyToManyField(Player, related_name='winners')
+	losers = models.ManyToManyField(Player, related_name='losers')
 
 
 class GameResults(models.Model):
@@ -56,7 +97,6 @@ class GameResults(models.Model):
 		super().save(*args, **kwargs)
 
 
-
 class GameSchedule(models.Model):
 	class GameID(models.IntegerChoices):
 		Pong = 0, 'Pong'
@@ -71,8 +111,8 @@ class GameSchedule(models.Model):
 	timestamp = models.DateTimeField(auto_now_add=True)
 
 
-
 class GameRequest(models.Model):
+
 	class GameID(models.IntegerChoices):
 		Pong = 0, 'Pong'
 		Other = 1, 'Other'
@@ -82,12 +122,17 @@ class GameRequest(models.Model):
 	user = models.ForeignKey(UserAccount, related_name='inviter', on_delete=models.CASCADE)
 	invitee = models.ForeignKey(UserAccount, related_name='invitee', on_delete=models.CASCADE)
 	is_active = models.BooleanField(blank=True, null=False, default=True)
+	status = models.CharField(max_length=20, default='pending')
 	timestamp = models.DateTimeField(auto_now_add=True)
 
 	def accept(self):
 		player_one = Player.objects.get(user=self.user)
 		player_two = Player.objects.get(user=self.invitee)
-		if self.game_mode != 'tournament' and self.tournament != None:
+		if self.game_mode == 'tournament' and self.tournament != None:
+			TournamentPlayer.objects.create(tournament=self.tournament, player=Player.objects.get(user=self.invitee) )
+			if len(TournamentPlayer.objects.filter(tournament=self.tournament)) == len(self.tournament.players.all()):
+				self.tournament.matchmaking()
+		else:
 			game = GameSchedule.objects.create(
 				player_one=player_one,
 				player_two=player_two,
@@ -96,17 +141,28 @@ class GameRequest(models.Model):
 				tournament=self.tournament
 			)
 			game.save()
-			self.is_active = False
-			self.save()
-		else:
-			pass # define what happens when a tournament invite is accepted 
+		self.is_active = False
+		self.status = 'accepted'
+		self.save()
 
 	def reject(self):
 		self.is_active = False
+		self.status = 'rejected'
+		if self.game_mode == 'tournament' and self.tournament != None:
+			user = UserAccount.objects.get(username=self.invitee)
+			self.tournament.players.remove(Player.objects.get(user=user))
+			if len(TournamentPlayer.objects.filter(tournament=self.tournament)) == len(self.tournament.players.all()):
+				self.tournament.matchmaking()
 		self.save()
 
 	def cancel(self):
 		self.is_active = False
+		self.status = 'cancelled'
+		if self.game_mode == 'tournament' and self.tournament != None:
+			user = UserAccount.objects.get(username=self.invitee)
+			self.tournament.players.remove(Player.objects.get(user=user))
+			if len(TournamentPlayer.objects.filter(tournament=self.tournament)) == len(self.tournament.players.all()):
+				self.tournament.matchmaking()
 		self.save()
 
 

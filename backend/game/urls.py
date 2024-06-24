@@ -13,5 +13,7 @@ urlpatterns = [
     path('history', views.match_history, name='match-history'),
     
     path('stats', views.player_stats, name='player-stats'),
-    path('tournament', views.create_tournament, name='create-tournament'),
+    path('tournament-create', views.create_tournament, name='create-tournament'),
+    path('tournaments', views.tournament_list_view, name='tournament-list'),
+    path('tournament-details/<tournament_id>', views.tournament_detailed_view, name='tournament-details'),
 ]
