@@ -38,4 +38,13 @@ def calculate_user_xp(margin, winner):
 
 def get_minimal_user_details(user):
     pass
+
+def get_nth_string(num):
+    if 10 <= num % 100 <= 20:
+        suffix = 'th'
+    else:
+        suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(num % 10, 'th')
+    return str(num) + suffix
+
+
     

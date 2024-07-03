@@ -32,23 +32,22 @@ def game_results(request, *args, **kwargs):
 		score_one = data.get('score_one')
 		score_two = data.get('score_two')
 		response = parse_results(schedule_id, score_one, score_two)
-		print(f'-------> {response}')
 		message = response[0]
 		status = response[-1]
 		return JsonResponse(message, status=status)
 	else:
 		return JsonResponse({'success': False}, status=403)
 
-@csrf_exempt
-@login_required
-def match(request, *args, **kwargs):
-	user = request.user
-	t_id = kwargs.get('tournament_id')
-	if t_id:
-		tournament = Tournament.objects.get(id=t_id)
-		update_tournament(tournament)
-		return JsonResponse({'success': True}, status=200)
-	return JsonResponse({'success': False}, status=500)
+# @csrf_exempt
+# @login_required
+# def match(request, *args, **kwargs):
+# 	user = request.user
+# 	t_id = kwargs.get('tournament_id')
+# 	if t_id:
+# 		tournament = Tournament.objects.get(id=t_id)
+# 		update_tournament(tournament)
+# 		return JsonResponse({'success': True}, status=200)
+# 	return JsonResponse({'success': False}, status=500)
 
 
 
@@ -335,8 +334,6 @@ def create_tournament(request, *args, **kwargs):
 		mode = data.get('mode')
 		game_id = data.get('game_id')
 		player_ids = data.get('players')
-		nb_player = data.get('nb_players')
-		nb_rounds = data.get('nb_rounds')
 
 		try:
 			Tournament.objects.get(name=name)
@@ -347,9 +344,7 @@ def create_tournament(request, *args, **kwargs):
 					name=name,
 					mode=mode,
 					creator=user,
-					game_id=game_id,
-					nb_player=nb_player,
-					nb_rounds=nb_rounds
+					game_id=game_id
 				)
 				tournament.players.add(Player.objects.get(user=user))
 				for id in player_ids:
@@ -420,6 +415,48 @@ def tournament_detailed_view(request, *args, **kwargs):
 	else:
 		return JsonResponse({'success': False}, status=405)
 
+
+@csrf_exempt
+@login_required
+def tournament_force_schedule(request, *args, **kwargs):
+	t_id = kwargs.get('tournament_id')
+	user = request.user
+	if request.method == 'POST':
+		if t_id:
+			try:
+				tournament = Tournament.objects.get(id=t_id)
+			except Tournament.DoesNotExist:
+				return JsonResponse({'success': False, 'message': 'Tournament does not exist'}, status=400)
+			except Exception as e:
+				return JsonResponse({'success': False, 'message': str(e)}, status=500)
+			if tournament.creator != user:
+				return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
+			try:
+				# TournamentPlayer.objects.get(tournament=tournament, player=Player.objects.get(user=user))
+				players = TournamentPlayer.objects.filter(tournament=tournament)
+				if len(players) >= 4:
+					schedules = GameRequest.objects.filter(tournament=tournament, is_active=True)
+					for schedule in schedules:
+						schedule.cancel()
+					try:
+						tournament.update(True, False)
+						schedules = GameSchedule.objects.filter(tournament=tournament, is_active=True)
+						if len(schedules) < 1:
+							return JsonResponse({'success': False, 'message': 'match fixtures creation failed'}, status=500)
+						else:
+							return JsonResponse({'success': True, 'message': 'match fixtures created'}, status=200)
+					except Exception as e:
+						return JsonResponse({'success': True, 'message': str(e)}, status=500)
+				else:
+					return JsonResponse({'success': False, 'message': 'At least four players are required to start tournament'}, status=400)
+			except TournamentPlayer.DoesNotExist:
+				return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
+			except Exception as e:
+				return JsonResponse({'success': False, 'message': str(e)}, status=500)
+		else:
+			return JsonResponse({'success': False, 'message': 'Bad Request: tournament id not present'}, status=400)
+	else:
+		return JsonResponse({'success': False}, status=405)
 
 
 @csrf_exempt
