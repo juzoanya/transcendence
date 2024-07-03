@@ -46,14 +46,75 @@ def parse_results(schedule_id, score_one, score_two): #TODO send user xp gained 
     else:
         return {'success': False, 'message': 'Internal server error'}, 500
     if game.game_mode == 'tournament':
-        update_tournament(result.tournament)
-    
-    # try:
-    #     player = Player.objects.get(user=user)
-    #     data = model_object_serializer(player)
-    # except Exception as e:
-    #     return {'success': False, 'message': str(e)}, 400
+        if check_final_game(result):
+            set_winner(result)
+            result.tournament.update(False, True)
+        else:
+            tournament_player_update(result)
+            if tournament_round_finished():
+                result.tournament.update(False, False)
     return {'success': True, 'message': 'record created'}, 200
+
+
+def set_winner(result):
+    if result.tournament.mode != 'round robin':
+        result.tournament.winner = result.winner
+    else:
+        players = TournamentPlayer.objects.filter(tournament=result.tournament)
+        winner = players.order_by('-xp').first()
+        result.tournament.winner = winner.user
+
+def check_final_game(result):
+    if result.tournament.mode != 'round robin' and result.tournament.stage == 'final':
+        return True
+    else:
+        players = TournamentPlayer.objects.filter(tournament=result.tournament)
+        rounds = len(players) - 1
+        for player in players:
+            if player.round != rounds:
+                return False
+        return True
+
+
+def tournament_round_finished(tournament):
+    try:
+        schedules = GameSchedule.objects.filter(tournament=tournament, is_active=True)
+    except Exception as e:
+        return JsonResponse({'success': False}, status=500)
+    if schedules is not None:
+        return False
+    else:
+        return True
+
+# def set_schedule_round_robin(tournament):
+#     try:
+#         players = TournamentPlayer.objects.filter(tournament=tournament)
+#     except Exception as e:
+#         return JsonResponse({'success': False}, status=500)
+#     for player in players:
+#         try:
+#             player_schedule = GameSchedule.objects.filter(Q(player_one=player) | Q(player_two=player), is_active=True)
+#         except Exception as e:
+#             return JsonResponse({'success': False}, status=500)
+#         num = len(player_schedule)
+#         for schedule in player_schedule:
+#             schedule.round = num
+#             num -= 1
+
+
+def tournament_player_update(result):
+    winner_player = TournamentPlayer.objects.get(
+        player=Player.obeject.get(user=result.winner),
+        tournament=result.tournament
+        )
+    if result.tournament.mode != 'group and knockout':
+        winner_player.round += 1
+    loser_player = TournamentPlayer.objects.get(
+        player=Player.obeject.get(user=result.loser),
+        tournament=result.tournament
+        )
+    if result.tournament.mode == 'round robin':
+        loser_player += 1
 
 
 def tournament_details(tournament):
@@ -125,13 +186,18 @@ def tournament_details(tournament):
         }
         results.append(item)
     details['results'] = results
-    #TODO: pass also the leaderboard
+    leaderboard = tournament_leaderboard(tournament)
+    details['leaderboard'] = leaderboard
     return details
 
 
 def tournament_player_creator(user, tournament):
     try:
-        tournament_player = TournamentPlayer.objects.create(player=Player.objects.get(user=user), tournament=tournament)
+        tournament_player = TournamentPlayer.objects.create(
+            player=Player.objects.get(user=user),
+            tournament=tournament,
+            round=1
+            )
     except Exception as e:
         tournament.delete()
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
@@ -147,7 +213,6 @@ def xp_calculation(result, score_one, score_two):
         if result.tournament != None and result.game_mode == 'tournament':
             t_player = TournamentPlayer.objects.get(player=winner_player, tournament=result.tournament)
             t_player.xp += winner_xp
-            t_player.num_round += 1
             t_player.save()
         else:
             winner_player.xp += winner_xp
@@ -187,6 +252,10 @@ def tournament_leaderboard(tournament):
                    )
     if ordered_player:
         for player in ordered_player:
-            pass
-    
+            print(f'--> {player}')
+    else:
+        print(f'Value: error')    
     return leaderboard
+
+
+
