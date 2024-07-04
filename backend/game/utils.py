@@ -51,7 +51,7 @@ def parse_results(schedule_id, score_one, score_two): #TODO send user xp gained 
             result.tournament.update(False, True)
         else:
             tournament_player_update(result)
-            if tournament_round_finished():
+            if tournament_round_finished(result.tournament):
                 result.tournament.update(False, False)
     return {'success': True, 'message': 'record created'}, 200
 
@@ -62,18 +62,19 @@ def set_winner(result):
     else:
         players = TournamentPlayer.objects.filter(tournament=result.tournament)
         winner = players.order_by('-xp').first()
-        result.tournament.winner = winner.user
+        result.tournament.winner = winner.player.user
 
 def check_final_game(result):
-    if result.tournament.mode != 'round robin' and result.tournament.stage == 'final':
-        return True
+    if result.tournament.mode == 'round robin':
+        try:
+            schedules = GameSchedule.objects.filter(tournament=result.tournament, is_active=True)
+        except GameSchedule.DoesNotExist:
+            return True
+        if len(schedules) == 0:
+            return True
     else:
-        players = TournamentPlayer.objects.filter(tournament=result.tournament)
-        rounds = len(players) - 1
-        for player in players:
-            if player.round != rounds:
-                return False
-        return True
+        if result.tournament.stage == 'final':
+            return True
 
 
 def tournament_round_finished(tournament):
@@ -81,40 +82,24 @@ def tournament_round_finished(tournament):
         schedules = GameSchedule.objects.filter(tournament=tournament, is_active=True)
     except Exception as e:
         return JsonResponse({'success': False}, status=500)
-    if schedules is not None:
-        return False
-    else:
+    if len(schedules) == 0:
         return True
+    return False
 
-# def set_schedule_round_robin(tournament):
-#     try:
-#         players = TournamentPlayer.objects.filter(tournament=tournament)
-#     except Exception as e:
-#         return JsonResponse({'success': False}, status=500)
-#     for player in players:
-#         try:
-#             player_schedule = GameSchedule.objects.filter(Q(player_one=player) | Q(player_two=player), is_active=True)
-#         except Exception as e:
-#             return JsonResponse({'success': False}, status=500)
-#         num = len(player_schedule)
-#         for schedule in player_schedule:
-#             schedule.round = num
-#             num -= 1
 
 
 def tournament_player_update(result):
     winner_player = TournamentPlayer.objects.get(
-        player=Player.obeject.get(user=result.winner),
+        player=Player.objects.get(user=result.winner),
         tournament=result.tournament
         )
-    if result.tournament.mode != 'group and knockout':
+    if result.tournament.mode != 'group and knockout' and result.tournament.mode != 'round robin':
         winner_player.round += 1
-    loser_player = TournamentPlayer.objects.get(
-        player=Player.obeject.get(user=result.loser),
-        tournament=result.tournament
-        )
-    if result.tournament.mode == 'round robin':
-        loser_player += 1
+        winner_player.save()
+    # loser_player = TournamentPlayer.objects.get(
+    #     player=Player.obeject.get(user=result.loser),
+    #     tournament=result.tournament
+    #     )
 
 
 def tournament_details(tournament):

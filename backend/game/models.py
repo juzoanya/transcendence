@@ -32,7 +32,6 @@ class Tournament(models.Model):
 	
 	def update(self, start, end):
 		if start:
-			print(f'---> Start called')
 			self.status = 'in progress'
 			self.started = timezone.now()
 			self.rounds += 1
@@ -40,14 +39,17 @@ class Tournament(models.Model):
 			self.save()
 			self.matchmaking()
 		elif end:
-			print(f'---> End called')
-			self.status = 'ended'
+			self.status = 'finished'
 			self.ended = timezone.now()
+			players = TournamentPlayer.objects.filter(tournament=self)
+			for player in players:
+				player.player.xp += player.xp
+				player.player.save()
 			self.save()
 		else:
-			print(f'---> Rematch called')
 			self.rounds += 1
 			num = TournamentPlayer.objects.filter(tournament=self, round=self.rounds).count()
+			print(f'@@@@@>>>>> {num}')
 			if self.mode != 'round robin':
 				if num == 16 and self.mode == 'group and knockout':
 					self.stage = 'round of 16'
@@ -61,6 +63,9 @@ class Tournament(models.Model):
 					self.stage = get_nth_string(self.rounds) + ' round'
 				self.save()
 				self.matchmaking()
+				if len(GameSchedule.objects.filter(tournament=self, round=self.rounds, is_active=True)) == 0:
+					self.rounds -= 1
+					self.save()
 			else:
 				self.stage = get_nth_string(self.rounds) + ' round'
 				self.save()
@@ -68,8 +73,6 @@ class Tournament(models.Model):
 	
 	def matchmaking(self):
 		players = TournamentPlayer.objects.filter(tournament=self, round=self.rounds)
-		# max_round = tournament_players.aggregate(Max('num_round'))['num_round__max']
-		# players = list(tournament_players.filter(num_round=max_round))
 		num_plys = TournamentPlayer.objects.filter(tournament=self).count()
 		if self.rounds == 1:
 			if self.mode == 'group and knockout' and num_plys % 4 == 0 and num_plys < 8:
@@ -79,7 +82,7 @@ class Tournament(models.Model):
 				self.mode = 'round robin'
 				self.save()
 
-		if self.status != 'finished' and self.stage != 'final':
+		if self.status != 'finished':
 			if self.mode == 'single elimination':
 				self.single_elimination(players)
 			elif self.mode == 'group and knockout':
@@ -88,10 +91,11 @@ class Tournament(models.Model):
 				self.round_robin()
 				# if len(GameSchedule.objects.filter(tournament=self, is_active=True)) == len(GameSchedule.objects.filter(tournament=self, is_active=True, round=0)):
 				# 	players = TournamentPlayer.objects.filter(tournament=self)
-				# 	schedules = GameSchedule.objects.filter(tournament=self, is_active=True, round=0)
+				# 	schedules = GameSchedule.objects.filter(tournament=self, is_active=True)
+				# 	print(f' >>>> num schedule {len(schedules)}')
 				# 	i = 0
-				# 	num_round = len(players) - 1
 				# 	for player in players:
+				# 		num_round = len(players) - 1
 				# 		if i == 0:
 				# 			schedule = schedules.filter(Q(player_one=player.player) | Q(player_two=player.player))
 				# 			for game in schedule:
@@ -99,15 +103,71 @@ class Tournament(models.Model):
 				# 				game.save()
 				# 				num_round -= 1
 				# 		else:
+				# 			print(f'---> Begint')
+				# 			match_as_player_one = schedules.filter(player_one=player.player)
+				# 			match_as_player_two = schedules.filter(player_two=player.player)
+				# 			print(f'<--> {player.player} MAPO ---> {match_as_player_one} \n MAPT ---> {match_as_player_two}')
 				# 			ply1_rounds = []
 				# 			ply2_rounds = []
+				# 			print(f'---> <---')
 				# 			schedule = schedules.filter(Q(player_one=player.player) | Q(player_two=player.player))
-				# 			for game in schedule:
-				# 				if game.round > 0:
-				# 					ply1_rounds.append(game.round)
+
+				# 			print(f'---> 3 <--- {schedule}')
 							
 				# 			for game in schedule:
-				# 				pass
+				# 				if game.round > 0:
+				# 					print(f'    ---> game_id {game.id}')
+				# 					ply1_rounds.append(game.round)
+				# 			print(f'   ply1_rounds -----> {ply1_rounds}')
+				# 			for game in match_as_player_one:
+				# 				if ply2_rounds:
+				# 					ply2_rounds.clear()
+				# 				print(f'    --->>> game {game.id}')
+				# 				schedule_mapo = schedules.filter(Q(player_one=game.player_two) | Q(player_two=game.player_two))
+				# 				print(f'   ---> 2 <--- {game.player_two}  <<-->> {schedule_mapo}')
+				# 				for game_mapo in schedule_mapo:
+				# 					if game_mapo.round > 0:
+				# 						print(f'    ---> game_mapo_id {game_mapo.id}')
+				# 						ply2_rounds.append(game_mapo.round)
+				# 				print(f'   ply2_rounds -----> {ply2_rounds} \n     <->round {game.round}')
+				# 				if game.round < 1:
+				# 					n = num_round
+				# 					print(f'    >>>> {n}')
+				# 					while n:
+				# 						print(f'    >>>>--<<<<')
+				# 						if n not in ply1_rounds and n not in ply2_rounds:
+				# 							print(f'    >>>>GOOD<<<<')
+				# 							game.round = n
+				# 							game.save()
+				# 							print(f'   <-->round {game.round}')
+				# 							break
+				# 						n -= 1
+				# 				# ply2_rounds.clear()
+				# 			for game in match_as_player_two:
+				# 				if ply2_rounds:
+				# 					ply2_rounds.clear()
+				# 				# player_two = game.player_one
+				# 				schedule_mapt = schedules.filter(Q(player_one=game.player_one) | Q(player_two=game.player_one))
+				# 				print(f'   ---> 1 <--- {game.player_one}  <<-->> {schedule_mapt}')
+				# 				for game_mapt in schedule_mapt:
+				# 					if game_mapt.round > 0:
+				# 						print(f'    ---> game_mapt_id {game_mapt.id}')
+				# 						ply2_rounds.append(game_mapt.round)
+				# 				print(f'   ply2_rounds -----> {ply2_rounds} \n     <->round {game.round}')
+				# 				if game.round < 1:
+				# 					n = num_round
+				# 					print(f'    >>>> {n}')
+				# 					while n:
+				# 						print(f'    >>>>--<<<<')
+				# 						if n not in ply1_rounds and n not in ply2_rounds:
+				# 							print(f'    >>>>GOOD<<<<')
+				# 							game.round = n
+				# 							game.save()
+				# 							print(f'   <-->round {game.round}')
+				# 							break
+				# 						n -= 1
+				# 				# ply2_rounds.clear()
+				# 			ply1_rounds.clear()
 				# 		i += 1
 					
 

@@ -6,7 +6,7 @@ from .models import *
 class GameResultAdmin(admin.ModelAdmin):
     list_display = ['game_id', 'game_mode', 'player_one', 'player_two', 'player_one_score', 'player_two_score', 'winner', 'timestamp']
     list_search = ['game_id', 'game_mode', 'player_one', 'player_two']
-    list_filter = ['game_id', 'game_mode', 'player_one', 'player_two']
+    list_filter = ['tournament', 'game_id', 'game_mode', 'player_one', 'player_two']
     readonly_fields = ['game_id', 'game_mode', 'player_one', 'player_two', 'player_one_score', 'player_two_score', 'winner', 'loser', 'timestamp']
 
     class Meta:
@@ -38,7 +38,7 @@ admin.site.register(GameSchedule, GameScheduleAdmin)
 
 
 class TournamentAdmin(admin.ModelAdmin):
-    list_display = ['name', 'mode', 'creator', 'nb_player', 'status', 'winner']
+    list_display = ['name', 'mode', 'creator', 'rounds', 'stage', 'status', 'winner']
     readonly_fields = ['id']
 
     class Meta:

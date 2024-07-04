@@ -458,6 +458,22 @@ def tournament_force_schedule(request, *args, **kwargs):
 	else:
 		return JsonResponse({'success': False}, status=405)
 
+@csrf_exempt
+@login_required
+def test(request, *args, **kwargs):
+	t_id = kwargs.get('tournament_id')
+	if t_id:
+		try:
+			tournament = Tournament.objects.get(id=t_id)
+		except Tournament.DoesNotExist:
+			return JsonResponse({'success': False, 'message': 'Tournament does not exist'}, status=400)
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=500)
+		tournament.update(False, False)
+	else:
+		return JsonResponse({'success': False, 'message': 'Bad Request: tournament id not present'}, status=400)
+
+
 
 @csrf_exempt
 @login_required

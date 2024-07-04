@@ -18,4 +18,5 @@ urlpatterns = [
     path('tournament-details/<tournament_id>', views.tournament_detailed_view, name='tournament-details'),
 
     path('tournament-start/<tournament_id>', views.tournament_force_schedule, name='tounament-start'),
+    path('test/<tournament_id>', views.test),
 ]
