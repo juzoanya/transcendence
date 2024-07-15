@@ -1,8 +1,10 @@
 import json
 from django.shortcuts import render
 from .models import *
+from user.utils import *
 from user.models import UserAccount
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_GET, require_POST, require_safe
 from datetime import datetime, timedelta
 from django.http import HttpResponse, JsonResponse
 from django.core.serializers.json import DjangoJSONEncoder
@@ -187,35 +189,37 @@ def friend_requests_received(request, *args, **kwargs):
 
 
 @csrf_exempt
+@require_POST
 @login_required
 def send_friend_request(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'POST':
-		data = json.loads(request.body)
-		friend_id = data.get('receiver_id')
-		if friend_id:
-			receiver = UserAccount.objects.get(pk=friend_id)
-			try:
-				friend_requests = FriendRequest.objects.filter(sender=user, receiver=receiver)
-				try:
-					for req in friend_requests:
-						if req.is_active:
-							raise Exception("You have an active friend request.")
-					friend_request = FriendRequest.objects.create(sender=user, receiver=receiver)
-					# friend_request = FriendRequest.objects.get_or_create(sender=user, receiver=receiver)
-					# friend_request = FriendRequest(sender=user, receiver=receiver)
-					friend_request.save()
-					return JsonResponse({'success': True, 'message': 'Friend request was sent'}, status=200)
-				except Exception as e:
-					return JsonResponse({'success': False, 'message': str(e)}, status=400)
-			except FriendRequest.DoesNotExist:
-				friend_request = FriendRequest(sender=user, receiver=receiver)
-				friend_request.save()
-				return JsonResponse({'success': True, 'message': 'Friend request was sent'}, status=200)
-		else:
-			return JsonResponse({'success': False, 'message': 'User does not exist'}, status=404)
-	else:
-		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=405)
+	data = json.loads(request.body)
+	friend_id = data.get('receiver_id')
+	if not friend_id:
+		BadRequest400(message='Missing parameter: receiver_id')
+	try:
+		receiver = UserAccount.objects.get(pk=friend_id)
+	except UserAccount.DoesNotExist:
+		return NotFound404(message='user not found.')
+	except Exception as e:
+		return InternalServerError500(message='UserAccount: ' + str(e))
+	try:
+		friend_requests = FriendRequest.objects.filter(sender=user, receiver=receiver)
+		try:
+			for req in friend_requests:
+				if req.is_active:
+					raise Exception("You have an active friend request.")
+			friend_request = FriendRequest.objects.create(sender=user, receiver=receiver)
+			# friend_request = FriendRequest.objects.get_or_create(sender=user, receiver=receiver)
+			# friend_request = FriendRequest(sender=user, receiver=receiver)
+			friend_request.save()
+			return JsonResponse({'success': True, 'message': 'Friend request was sent'}, status=200)
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
+	except FriendRequest.DoesNotExist:
+		friend_request = FriendRequest(sender=user, receiver=receiver)
+		friend_request.save()
+		return JsonResponse({'success': True, 'message': 'Friend request was sent'}, status=200)
 	
 
 @csrf_exempt

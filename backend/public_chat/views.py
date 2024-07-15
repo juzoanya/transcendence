@@ -7,6 +7,7 @@ from .models import *
 def public_chat_view(request):
 	context = {}
 	context['debug_mode'] = settings.DEBUG
+	context['room_type'] = 'public'
 	context['room_id'] = 1
 	user = request.user
 	room_id = context['room_id']

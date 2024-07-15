@@ -21,12 +21,13 @@ django_asgi_app = get_asgi_application()
 
 from public_chat import routing as pb_routing
 from pong_server import routing as ps_routing
+from notification import routing as nf_routing
 
 application = ProtocolTypeRouter({
     'http': django_asgi_app,
     'websocket': AllowedHostsOriginValidator(
         AuthMiddlewareStack(
-            URLRouter(pb_routing.websocket_urlpatterns + ps_routing.websocket_urlpatterns)
+            URLRouter(pb_routing.websocket_urlpatterns + ps_routing.websocket_urlpatterns + nf_routing.websocket_urlpatterns)
         )
     )
 })
