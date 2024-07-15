@@ -2,6 +2,7 @@ import json
 from django.conf import settings
 from django.shortcuts import render, redirect
 from friends.models import *
+from .utils import *
 from .models import UserAccount, Player
 from friends.views import friend_list, block_list_view
 from django.contrib.auth import authenticate, login, logout
@@ -12,6 +13,7 @@ from datetime import datetime, timedelta
 from django.http import HttpResponse, JsonResponse
 from django.core.files.storage import default_storage
 from django.core.serializers.json import DjangoJSONEncoder
+from django.views.decorators.http import require_GET, require_POST, require_safe
 from django.views.decorators.csrf import csrf_exempt
 
 # Create your views here.
@@ -29,47 +31,39 @@ def homepage(request):
 	return render(request, 'index.html')
 
 @csrf_exempt
+@require_POST
 def register_view(request):
 	user = request.user
 	if user.is_authenticated:
 		return JsonResponse({'success': True, 'message': f'You are already logged in as {user}'}, status=200)
-	if request.method == 'POST':
-		data = json.loads(request.body)
-		username = data.get('username')
-		email = data.get('email')
-		password = data.get('password')
-
-		if UserAccount.objects.filter(username=username).exists():
-			return JsonResponse({'success': False, 'error':'Username already exists'}, status=400)
-		if UserAccount.objects.filter(email=email).exists():
-			return JsonResponse({'success': False, 'error':'email already exists'}, status=400)
-		try:
-			user = UserAccount.objects.create_user(username, email, password)
-			Player.objects.create(user=user)
-			FriendList.objects.create(user=user)
-			BlockList.objects.create(user=user)
-			return JsonResponse({'success': True, 'message':'Registration Successful'}, status=200)
-		except Exception as e:
-			return JsonResponse({'success': False, 'message': str(e)}, status=400)
+	data = json.loads(request.body)
+	username = data.get('username')
+	email = data.get('email')
+	password = data.get('password')
+	if UserAccount.objects.filter(username=username).exists():
+		return JsonResponse({'success': False, 'error':'Username already exists'}, status=400)
+	if UserAccount.objects.filter(email=email).exists():
+		return JsonResponse({'success': False, 'error':'email already exists'}, status=400)
+	try:
+		user = UserAccount.objects.create_user(username, email, password)
+		Player.objects.create(user=user)
+		FriendList.objects.create(user=user)
+		BlockList.objects.create(user=user)
+		return JsonResponse({'success': True, 'message':'Registration Successful'}, status=200)
+	except Exception as e:
+		return JsonResponse({'success': False, 'message': str(e)}, status=400)
 	# return render(request, 'user/register.html')
-	else:
-		return JsonResponse({'success': False}, status=403)
 
 @csrf_exempt
 def login_view(request):
-
 	if request.method == "GET":
 		if request.user.is_authenticated:
 			return JsonResponse({'success': True, 'message': 'You have an active session.', 'user_id': request.user.pk}, status=200)
-		# return JsonResponse({'success': False, 'message': 'no session'})
-	
 	if request.method == 'POST':
 		data = json.loads(request.body)
 		username = data.get('username')
 		password = data.get('password')
-
 		user = authenticate(request, username=username, password=password)
-
 		if user is not None:
 			if user.is_active:
 				login(request, user)
@@ -93,7 +87,6 @@ def check_full_profile(request):
 	data = {
 		'full_profile': account.full_profile
 	}
-
 	return JsonResponse({'data': data})
 
 
@@ -123,52 +116,30 @@ def logout_view(request):
 def profile_view(request, *args, **kwargs):
 	user = request.user
 	user_id = kwargs.get('user_id')
-
 	try:
 		account = UserAccount.objects.get(pk=user_id)
 	except Exception as e:
 		return JsonResponse({'success': False, 'message': str(e)}, status=400)
-
 	if BlockList.is_either_blocked(user, account):
 		return JsonResponse({'success': False, 'message': 'Blocked: You cannot view this account'}, status=400)
-	
 	try:
 		player = Player.objects.get(user=account)
 	except Exception as e:
 		return JsonResponse({'success': False, 'message': str(e)}, status=400)
-
 	if account:
-		data = {
-			'id': account.pk,
-			'username': account.username,
-			'email': account.email,
-			'first_name': account.first_name,
-			'last_name': account.last_name,
-			'avatar': account.avatar.url,
-			'last_login': account.last_login,
-			'date_joined': account.date_joined,
-			'alias': player.alias,
-			'games_played': player.games_played,
-			'wins': player.wins,
-			'losses': player.losses
-		}
-
+		data = serializer_full_profile_details(account, player)
 		is_self = True
 		is_friend = False
-
 		if user.is_authenticated and user != account:
 			is_self = False
 		elif not user.is_authenticated:
 			is_self = False
-		
 		friends = friend_list(request, *args, **kwargs)
 		block_list = block_list_view(request, *args, **kwargs)
-		
 		data['friends'] = friends
 		data['blocked'] = block_list
 		data['is_self'] = is_self
 		data['is_friend'] = is_friend
-		
 		context = {
 			'json_data': json.dumps(data, cls=DjangoJSONEncoder)
 		}
@@ -185,23 +156,18 @@ def profile_edit_view(request, *args, **kwargs):
 		account = UserAccount.objects.get(pk=user_id)
 	except UserAccount.DoesNotExist:
 		return JsonResponse({'success': False, 'message': 'This profile does not exist'}, status=400)
-	
 	try:
 		player = Player.objects.get(user=account)
 	except Player.DoesNotExist:
 		return JsonResponse({})
-
-	
 	if request.method == 'POST':
 		if account == user:
 			first_name = request.POST.get('first_name')
 			last_name = request.POST.get('last_name')
 			alias = request.POST.get('alias')
-
 			avatar = None
 			if 'avatar' in request.FILES:
 				avatar = request.FILES['avatar']
-
 			if first_name:
 				account.first_name = first_name
 			if last_name:
@@ -224,15 +190,12 @@ def profile_edit_view(request, *args, **kwargs):
 @login_required
 def complete_profile(request):
 	if request.method == 'POST':
-
 		user = request.user
 		first_name = request.POST.get('first_name')
 		last_name = request.POST.get('last_name')
-
 		avatar = None
 		if 'avatar' in request.FILES:
 			avatar = request.FILES['avatar']
-
 		if first_name or last_name:
 			if first_name:
 				user.first_name = first_name
@@ -241,69 +204,46 @@ def complete_profile(request):
 			if avatar:
 				user.avatar = avatar
 			user.save()
-		
 		user.full_profile = True
 		user.save()
-		
 		return JsonResponse({'success': True, 'message': 'Profile Updated', 'redirect': True, 'redirect_url': 'profile'}, status=200)
-	
 	return render(request, 'user/profile-reg.html')
 
  
 @csrf_exempt
 @login_required
 def user_search_results(request):
-	if request.method == 'POST':
-		user = request.user
-		res = None
-		entry = request.POST.get('userName')
-		search_results = UserAccount.objects.filter(username__icontains=entry)
-		if len(search_results) > 0 and len(entry) > 0:
-			data = []
-			for account in search_results:
-				item = {
-					'id': account.pk,
-					'username': account.username,
-					'email': account.email,
-					'first_name': account.first_name,
-					'last_name': account.last_name,
-					'avatar': account.avatar.url
-				}
-				user_friend_list = FriendList.objects.get(user=user)
-				item['is_mutual_friend'] = user_friend_list.is_mutual_friend(account)
-				data.append((item)) 
-			res = data
-		else:
-			res = 'No results found...'
-
-		return JsonResponse({'data': res})
-	return JsonResponse({'success': False}, status=403)
+	user = request.user
+	res = None
+	entry = request.POST.get('userName')
+	search_results = UserAccount.objects.filter(username__icontains=entry)
+	if len(search_results) > 0 and len(entry) > 0:
+		data = []
+		for account in search_results:
+			item = serializer_minimal_account_details(account)
+			user_friend_list = FriendList.objects.get(user=user)
+			item['is_mutual_friend'] = user_friend_list.is_mutual_friend(account)
+			data.append((item)) 
+		res = data
+	else:
+		res = 'No results found...'
+	return JsonResponse({'data': res})
 
 
 @csrf_exempt
+@require_GET
 @login_required
 def search(request, *args, **kwargs):
-	
-	if request.method == 'GET':
-		user = request.user
-		query = request.GET.get('q')
-		if len(query) > 0:
-			search_results = UserAccount.objects.filter(username__icontains=query).filter(email__icontains=query).distinct()
-			data = []
-			for account in search_results:
-				item = {
-					'id': account.pk,
-					'username': account.username,
-					'email': account.email,
-					'first_name': account.first_name,
-					'last_name': account.last_name,
-					'avatar': account.avatar.url
-				}
-				user_friend_list = FriendList.objects.get(user=user)
-				data.append((item, user_friend_list.is_mutual_friend(account))) 
-		return JsonResponse({'data': data})
-	else:
-		return JsonResponse({'success': False}, status=403)
+	user = request.user
+	query = request.GET.get('q')
+	if len(query) > 0:
+		search_results = UserAccount.objects.filter(username__icontains=query).filter(email__icontains=query).distinct()
+		data = []
+		for account in search_results:
+			item = serializer_minimal_account_details(account)
+			user_friend_list = FriendList.objects.get(user=user)
+			data.append((item, user_friend_list.is_mutual_friend(account))) 
+	return JsonResponse({'data': data})
 
 
 

@@ -130,9 +130,9 @@
             // Correctly decide between ws:// and wss://
             var ws_scheme = window.location.protocol == "https:" ? "wss" : "ws";
             {% if debug_mode %}
-                var ws_path = ws_scheme + '://' + window.location.host + "/public_chat/{{room_id}}/"; // development
+                var ws_path = ws_scheme + '://' + window.location.host + "/chat/{{room_type}}/{{room_id}}/"; // development
             {% else %}
-                var ws_path = ws_scheme + '://' + window.location.host + ":8001/public_chat/{{room_id}}/"; // production
+                var ws_path = ws_scheme + '://' + window.location.host + ":8001/chat/{{room_type}}/{{room_id}}/"; // production
             {% endif %}
             var public_chat_socket = new WebSocket(ws_path);
 

@@ -6,6 +6,8 @@ from django.utils import timezone
 from datetime import datetime
 from django.contrib.humanize.templatetags.humanize import naturalday
 from public_chat.models import *
+from game.models import Tournament
+from django.shortcuts import get_object_or_404
 
 MSG_TYPE_MESSAGE = 0
 
@@ -14,16 +16,36 @@ user = settings.AUTH_USER_MODEL
 class PublicChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def connect(self):
-        # self.room_name = self.scope["url_route"]["kwargs"]["room_id"]
-        # self.room_group_name = f"chat_{self.room_name}"
+        self.room_type = self.scope["url_route"]["kwargs"]["room_type"]
+        self.room_id = self.scope["url_route"]["kwargs"]["room_id"]
+        self.room_group_name = f"{self.room_type}_chat_{self.room_id}"
 
+        if self.room_type == 'public':
+            await self.accept()
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+        elif self.room_type == 'tournament':
+            tournament = get_object_or_404(Tournament, id=self.room_id)
+            if self.scope['user'] in tournament.players.all():
+                await self.accept()
+                await self.channel_layer.group_add(
+                    self.room_group_name,
+                    self.channel_name
+                )
+            else:
+                await self.close()
+        else:
+            await self.close()
         print("PublicChatConsumer: connect: " + str(self.scope['user']))
-        await self.accept()
+        # await self.accept()
 
-        await self.channel_layer.group_add(
-            'public_chat_room_1',
-            self.channel_name
-        )
+        # await self.channel_layer.group_add(
+        #     'public_chat_room_1',
+        #     self.channel_name
+        # )
+    
 
     async def disconnect(self, code):
         print("PublicChatConsumer: disconnect")
@@ -48,7 +70,7 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
     
     async def send_message(self, message):
         await self.channel_layer.group_send(
-            'public_chat_room_1',
+            self.room_group_name,
             {
                 'type': 'chat.message',
                 'user_id': self.scope['user'].id,
@@ -71,14 +93,16 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
             'timestamp': timestamp,
         })
 
+
+# def TournamentChatConsumer(AsyncJsonWebsocketConsumer):
+#     pass
+
 class ClientError(Exception):
     def __init__(self, code, message):
         super().__init__(code)
         self.code = code
         if message:
             self.message = message
-
-
 
 
 def humanize_timestamp(timestamp):

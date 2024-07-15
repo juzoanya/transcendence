@@ -630,10 +630,9 @@
 		if(notifications.length > 0){
 			clearNoGeneralNotificationsCard()
 			notifications.forEach(notification => {
-				appendBottomGeneralNotification(notification)
-				// submitGeneralNotificationToCache(notification)
-				// setGeneralOldestTimestamp(notification['timestamp'])
-				// setGeneralNewestTimestamp(notification['timestamp'])
+				submitGeneralNotificationToCache(notification)
+				setGeneralOldestTimestamp(notification['timestamp'])
+				setGeneralNewestTimestamp(notification['timestamp'])
 			})
 			setGeneralPageNumber(new_page_number)
 		}

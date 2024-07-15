@@ -7,6 +7,11 @@ from django.db.models.functions import Random
 from django.db.models import Max
 from django.utils import timezone
 from django.http import JsonResponse
+from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.contenttypes.models import ContentType
+from django.dispatch import receiver
+from django.db.models.signals import post_save
+from notification.models import Notification
 
 
 
@@ -49,13 +54,12 @@ class Tournament(models.Model):
 		else:
 			self.rounds += 1
 			num = TournamentPlayer.objects.filter(tournament=self, round=self.rounds).count()
-			print(f'@@@@@>>>>> {num}')
 			if self.mode != 'round robin':
 				if num == 16 and self.mode == 'group and knockout':
 					self.stage = 'round of 16'
 				elif num == 8:
 					self.stage = 'quarter-final'
-				elif num == 4:
+				elif num > 2 and num < 5:
 					self.stage = 'semi-final'
 				elif num == 2:
 					self.stage = 'final'
@@ -78,7 +82,7 @@ class Tournament(models.Model):
 			if self.mode == 'group and knockout' and num_plys % 4 == 0 and num_plys < 8:
 				self.mode = 'single elimination'
 				self.save()
-			elif self.mode == 'single elimination' and num_plys % 4 == 1:
+			elif self.mode == 'single elimination' and num_plys % 2 == 1:
 				self.mode = 'round robin'
 				self.save()
 
@@ -89,86 +93,6 @@ class Tournament(models.Model):
 				self.group_and_knockout(players)
 			else:
 				self.round_robin()
-				# if len(GameSchedule.objects.filter(tournament=self, is_active=True)) == len(GameSchedule.objects.filter(tournament=self, is_active=True, round=0)):
-				# 	players = TournamentPlayer.objects.filter(tournament=self)
-				# 	schedules = GameSchedule.objects.filter(tournament=self, is_active=True)
-				# 	print(f' >>>> num schedule {len(schedules)}')
-				# 	i = 0
-				# 	for player in players:
-				# 		num_round = len(players) - 1
-				# 		if i == 0:
-				# 			schedule = schedules.filter(Q(player_one=player.player) | Q(player_two=player.player))
-				# 			for game in schedule:
-				# 				game.round = num_round
-				# 				game.save()
-				# 				num_round -= 1
-				# 		else:
-				# 			print(f'---> Begint')
-				# 			match_as_player_one = schedules.filter(player_one=player.player)
-				# 			match_as_player_two = schedules.filter(player_two=player.player)
-				# 			print(f'<--> {player.player} MAPO ---> {match_as_player_one} \n MAPT ---> {match_as_player_two}')
-				# 			ply1_rounds = []
-				# 			ply2_rounds = []
-				# 			print(f'---> <---')
-				# 			schedule = schedules.filter(Q(player_one=player.player) | Q(player_two=player.player))
-
-				# 			print(f'---> 3 <--- {schedule}')
-							
-				# 			for game in schedule:
-				# 				if game.round > 0:
-				# 					print(f'    ---> game_id {game.id}')
-				# 					ply1_rounds.append(game.round)
-				# 			print(f'   ply1_rounds -----> {ply1_rounds}')
-				# 			for game in match_as_player_one:
-				# 				if ply2_rounds:
-				# 					ply2_rounds.clear()
-				# 				print(f'    --->>> game {game.id}')
-				# 				schedule_mapo = schedules.filter(Q(player_one=game.player_two) | Q(player_two=game.player_two))
-				# 				print(f'   ---> 2 <--- {game.player_two}  <<-->> {schedule_mapo}')
-				# 				for game_mapo in schedule_mapo:
-				# 					if game_mapo.round > 0:
-				# 						print(f'    ---> game_mapo_id {game_mapo.id}')
-				# 						ply2_rounds.append(game_mapo.round)
-				# 				print(f'   ply2_rounds -----> {ply2_rounds} \n     <->round {game.round}')
-				# 				if game.round < 1:
-				# 					n = num_round
-				# 					print(f'    >>>> {n}')
-				# 					while n:
-				# 						print(f'    >>>>--<<<<')
-				# 						if n not in ply1_rounds and n not in ply2_rounds:
-				# 							print(f'    >>>>GOOD<<<<')
-				# 							game.round = n
-				# 							game.save()
-				# 							print(f'   <-->round {game.round}')
-				# 							break
-				# 						n -= 1
-				# 				# ply2_rounds.clear()
-				# 			for game in match_as_player_two:
-				# 				if ply2_rounds:
-				# 					ply2_rounds.clear()
-				# 				# player_two = game.player_one
-				# 				schedule_mapt = schedules.filter(Q(player_one=game.player_one) | Q(player_two=game.player_one))
-				# 				print(f'   ---> 1 <--- {game.player_one}  <<-->> {schedule_mapt}')
-				# 				for game_mapt in schedule_mapt:
-				# 					if game_mapt.round > 0:
-				# 						print(f'    ---> game_mapt_id {game_mapt.id}')
-				# 						ply2_rounds.append(game_mapt.round)
-				# 				print(f'   ply2_rounds -----> {ply2_rounds} \n     <->round {game.round}')
-				# 				if game.round < 1:
-				# 					n = num_round
-				# 					print(f'    >>>> {n}')
-				# 					while n:
-				# 						print(f'    >>>>--<<<<')
-				# 						if n not in ply1_rounds and n not in ply2_rounds:
-				# 							print(f'    >>>>GOOD<<<<')
-				# 							game.round = n
-				# 							game.save()
-				# 							print(f'   <-->round {game.round}')
-				# 							break
-				# 						n -= 1
-				# 				# ply2_rounds.clear()
-				# 			ply1_rounds.clear()
-				# 		i += 1
 					
 
 	def round_robin(self):
@@ -302,6 +226,7 @@ class GameRequest(models.Model):
 	invitee = models.ForeignKey(UserAccount, related_name='invitee', on_delete=models.CASCADE)
 	is_active = models.BooleanField(blank=True, null=False, default=True)
 	status = models.CharField(max_length=20, default='pending')
+	notifications = GenericRelation(Notification)
 	timestamp = models.DateTimeField(auto_now_add=True)
 
 	def accept(self):
@@ -329,6 +254,24 @@ class GameRequest(models.Model):
 		self.is_active = False
 		self.status = 'accepted'
 		self.save()
+		content_type = ContentType.objects.get_for_model(self)
+		#Update notification for RECEIVER
+		receiver_notification = Notification.objects.get(target=self.invitee, content_type=content_type, object_id=self.id)
+		receiver_notification.is_active = False
+		receiver_notification.read = True
+		# receiver_notification.redirect_url = f"profile/{self.user.pk}"
+		receiver_notification.description = f"You accepted {self.user.username}'s game invite."
+		receiver_notification.timestamp = timezone.now()
+		receiver_notification.save()
+		#Create notification for SENDER
+		self.notifications.create(
+			target=self.user,
+			from_user=self.invitee,
+			# redirect_url=f"profile/{self.invitee.pk}",
+			description=f"{self.invitee.username} accepted your game request.",
+			content_type=content_type,
+		)
+		return receiver_notification
 
 	def reject(self):
 		self.is_active = False
@@ -339,6 +282,25 @@ class GameRequest(models.Model):
 			if len(TournamentPlayer.objects.filter(tournament=self.tournament)) == len(self.tournament.players.all()):
 				self.tournament.update(True, False)
 		self.save()
+		content_type = ContentType.objects.get_for_model(self)
+		#Update notification for RECEIVER
+		notification = Notification.objects.get(target=self.invitee, content_type=content_type, object_id=self.id)
+		notification.is_active = False
+		notification.read = True
+		# notification.redirect_url = f"profile/{self.user.pk}"
+		notification.description = f"You declined {self.user}'s game request."
+		notification.from_user = self.user
+		notification.timestamp = timezone.now()
+		notification.save()
+		#Create notification for SENDER
+		self.notifications.create(
+            target=self.user,
+            description=f"{self.invitee.username} declined your game request.",
+            from_user=self.invitee,
+            # redirect_url=f"profile/{self.invitee.pk}",
+            content_type=content_type,
+        )
+		return notification
 
 	def cancel(self):
 		self.is_active = False
@@ -349,6 +311,34 @@ class GameRequest(models.Model):
 			if len(TournamentPlayer.objects.filter(tournament=self.tournament)) == len(self.tournament.players.all()):
 				self.tournament.update(True, False)
 		self.save()
+		content_type = ContentType.objects.get_for_model(self)
+        # Create notification for SENDER
+		self.notifications.create(
+            target=self.user,
+            description=f"You cancelled the game request to {self.invitee.username}.",
+            from_user=self.invitee,
+            redirect_url=f"profile/{self.invitee.pk}",
+            content_type=content_type,
+        )
+		notification = Notification.objects.get(target=self.invitee, content_type=content_type, object_id=self.id)
+		notification.description = f"{self.user.username} cancelled the friend request."
+		notification.read = False
+		notification.save()
+	
+	@property
+	def get_cname(self):
+		return 'GameRequest'
+	
+@receiver(post_save, sender=GameRequest)
+def create_notification(sender, instance, created, **kwargs):
+	if created:
+		instance.notifications.create(
+			target=instance.invitee,
+			from_user=instance.user,
+			# redirect_url=f"profile/{instance.user.pk}",
+			description=f"{instance.user.username} sent you a game request.",
+			content_type=instance,
+		)
 
 
 
