@@ -649,6 +649,11 @@
 				card = createFriendRequestElement(notification)
 				notificationContainer.appendChild(card)
 				break;
+			case "GameRequest":
+				notificationContainer = document.getElementById("id_general_notifications_container")
+				card = createFriendRequestElement(notification)
+				notificationContainer.appendChild(card)
+				break;
 			case "FriendList":
 				notificationContainer = document.getElementById("id_general_notifications_container")
 				card = createFriendListElement(notification)

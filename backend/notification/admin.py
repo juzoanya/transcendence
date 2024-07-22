@@ -3,7 +3,7 @@ from notification.models import Notification
 
 class NotificationAdmin(admin.ModelAdmin):
     list_filter = ['content_type',]
-    list_display = ['target', 'from_user', 'content_type', 'timestamp']
+    list_display = ['target', 'from_user', 'content_type', 'read', 'timestamp']
     search_fields = ['target__username',]
     readonly_fields = []
 

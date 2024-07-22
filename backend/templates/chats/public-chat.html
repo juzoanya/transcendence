@@ -79,6 +79,15 @@
         .timestamp-span:hover{
             cursor: pointer;
         }
+        .connected-users{
+            color: red;
+        }
+        .connected-users-icon{
+            color: red;
+        }
+        .connected-users-icon:hover{
+            cursor: default;
+        }
 	</style>
 </head>
 <body>
@@ -106,14 +115,25 @@
     </nav>
     
     <div class="container mt-5">
-        <div class="d-flex flex-column">
-            <div class="d-flex flex-column chat-log" id="chatLog">
+        <div class="card mt-3">
+            <div class="card-header">
+                <div class="d-flex flex-row justify-content-between">
+                    <h3 class="">Public Chat</h3>
+                    <div class="d-flex flex-row align-items-center">
+                        <span class="material-icons m-auto pr-1 connected-users-icon">online </span>
+                        <span class="m-auto connected-users" id="id_connected_users"></span>
+                    </div>
+                </div>
             </div>
-            <div class="d-flex chat-message-input-container">
-                <textarea class="flex-grow-1 chat-message-input" id="id_chat_message_input"></textarea>
-                <button class="btn btn-primary chat-message-submit-button" id="sendButton">
-                    <span id="id_chat_message_submit" class="material-icons">send</span>
-                </button>
+            <div class="card-body p-1">
+                <div class="d-flex flex-column chat-log" id="chatLog">
+                </div>
+                <div class="d-flex chat-message-input-container">
+                    <textarea class="flex-grow-1 chat-message-input" id="id_chat_message_input"></textarea>
+                    <button class="btn btn-primary chat-message-submit-button" id="sendButton">
+                        <span id="id_chat_message_submit" class="material-icons">send</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -121,59 +141,75 @@
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
 
-
+    <span class="d-none page-number" id="id_page_number">1</span>
     <script type="text/javascript">
         
-        setupPublicChatWebSocket()
+        // setupPublicChatWebSocket()
 
-        function setupPublicChatWebSocket(){
-            // Correctly decide between ws:// and wss://
-            var ws_scheme = window.location.protocol == "https:" ? "wss" : "ws";
-            {% if debug_mode %}
-                var ws_path = ws_scheme + '://' + window.location.host + "/chat/{{room_type}}/{{room_id}}/"; // development
-            {% else %}
-                var ws_path = ws_scheme + '://' + window.location.host + ":8001/chat/{{room_type}}/{{room_id}}/"; // production
-            {% endif %}
-            var public_chat_socket = new WebSocket(ws_path);
+        // Correctly decide between ws:// and wss://
+        var ws_scheme = window.location.protocol == "https:" ? "wss" : "ws";
+        // {% if debug_mode %}
+            var ws_path = ws_scheme + '://' + window.location.host + "/chat/{{room_type}}/{{room_id}}/"; // development
+        // {% else %}
+        //     var ws_path = ws_scheme + '://' + window.location.host + ":8001/chat/{{room_type}}/{{room_id}}/"; // production
+        // {% endif %}
+        var public_chat_socket = new WebSocket(ws_path);
 
-            // Handle incoming messages
-            public_chat_socket.onmessage = function(message) {
-                console.log("Got chat websocket message " + message.data);
-                var data = JSON.parse(message.data);
-                // Handle errors (ClientError)
-                if (data.error) {
-                    console.error(data.error + ": " + data.message)
-                    showClientErrorModal(data.message)
-                    return;
-                }
-
-                // Handle getting a message
-                if (data.msg_type == 0) {
-                    appendChatMessage(data)
-                }
-            };
-
-            public_chat_socket.addEventListener("open", function(e){
-                console.log("Public ChatSocket OPEN")
-            })
-
-            public_chat_socket.onclose = function(e) {
-                console.error('Public ChatSocket closed.');
-            };
-
-            public_chat_socket.onOpen = function(e){
-                console.log("Public ChatSocket onOpen", e)
+        // Handle incoming messages
+        public_chat_socket.onmessage = function(message) {
+            console.log("Got chat websocket message " + message.data);
+            var data = JSON.parse(message.data);
+            // Handle errors (ClientError)
+            if (data.error) {
+                console.error(data.error + ": " + data.message)
+                showClientErrorModal(data.message)
+                return;
             }
-
-            public_chat_socket.onerror = function(e){
-                console.log('Public ChatSocket error', e)
+            // Handle joining (Client perspective)
+            if (data.join) {
+                console.log("Joining public room " + data.join);
+                getRoomChatMessages()
             }
-
-            if (public_chat_socket.readyState == WebSocket.OPEN) {
-                console.log("Public ChatSocket OPEN")
-            } else if (public_chat_socket.readyState == WebSocket.CONNECTING){
-                console.log("Public ChatSocket connecting..")
+            // Handle getting a message
+            if (data.msg_type == 0) {
+                appendChatMessage(data, true, true)
             }
+            else if (data.msg_type == 1) {
+                setConnectedUsersCount(data.connected_user_count)
+            }
+            // new payload of messages coming in from backend
+            if(data.messages_data){
+                console.log("PAYLOAD")
+                handleMessagesPayload(data.messages, data.new_page_number)
+            }
+        };
+
+        public_chat_socket.addEventListener("open", function(e){
+            console.log("Public ChatSocket OPEN")
+            public_chat_socket.send(JSON.stringify({
+                "command": "join",
+                "room": "{{room_id}}",
+                "type": "public"
+            }));
+        })
+
+        public_chat_socket.onclose = function(e) {
+            console.error('Public ChatSocket closed.');
+        };
+
+        public_chat_socket.onOpen = function(e){
+            console.log("Public ChatSocket onOpen", e)
+        }
+
+        public_chat_socket.onerror = function(e){
+            console.log('Public ChatSocket error', e)
+        }
+
+        if (public_chat_socket.readyState == WebSocket.OPEN) {
+            console.log("Public ChatSocket OPEN")
+        } else if (public_chat_socket.readyState == WebSocket.CONNECTING){
+            console.log("Public ChatSocket connecting..")
+        }
 
             document.getElementById('id_chat_message_input').focus();
             document.getElementById('id_chat_message_input').onkeyup = function(e) {
@@ -185,18 +221,18 @@
                 }
             };
 
-            document.getElementById('id_chat_message_submit').onclick = function(e) {
-                const messageInputDom = document.getElementById('id_chat_message_input');
-                const message = messageInputDom.value;
-                public_chat_socket.send(JSON.stringify({
-                    "command": "send",
-                    "message": message
-                }));
-                messageInputDom.value = '';
-            };
-        }
+        document.getElementById('id_chat_message_submit').onclick = function(e) {
+            const messageInputDom = document.getElementById('id_chat_message_input');
+            const message = messageInputDom.value;
+            public_chat_socket.send(JSON.stringify({
+                "command": "send",
+                "message": message,
+                "room_id": "{{room_id}}"
+            }));
+            messageInputDom.value = '';
+        };
 
-        function appendChatMessage(data){
+        function appendChatMessage(data, maintainPosition, isNewMessage){
             message = data['message']
             uName = data['username']
             user_id = data['user_id']
@@ -205,10 +241,60 @@
             
             var msg = message + '\n';
             var username = uName + ": "
-            createChatMessageElement(msg, username, avatar, user_id, timestamp)
+            createChatMessageElement(msg, username, avatar, user_id, timestamp, maintainPosition, isNewMessage)
         }
 
-        function createChatMessageElement(msg, username, avatar, user_id, timestamp){
+        function handleMessagesPayload(messages, new_page_number){
+            if(messages != null && messages != "undefined" && messages != "None"){
+                setPageNumber(new_page_number)
+                messages.forEach(function(message){
+                    appendChatMessage(message, true, false)
+                })
+            }
+            else{
+                setPaginationExhausted() // no more messages
+            }
+        }
+
+        function setPageNumber(pageNumber){
+            document.getElementById("id_page_number").innerHTML = pageNumber
+            console.log("PageNumber SET!")
+        }
+
+        function setPaginationExhausted(){
+            setPageNumber("-1")
+        }
+
+        /*
+            Retrieve the chat room messages given the page number.
+        */
+        function getRoomChatMessages(){
+            var pageNumber = document.getElementById("id_page_number").innerHTML
+            if(pageNumber != "-1"){
+                setPageNumber("-1") // Do not allow any other queries while one is in progress
+                public_chat_socket.send(JSON.stringify({
+                    "command": "get_room_chat_messages",
+                    "room_id": "{{room_id}}",
+                    "page_number": pageNumber,
+                }));
+            }
+        }
+
+        /*
+            Get the next page of chat messages when scrolls to bottom
+        */
+        document.getElementById("chatLog").addEventListener("scroll", function(e){
+            var chatLog = document.getElementById("chatLog")
+            chatLog.addEventListener("scroll", function(e){
+                if ((Math.abs(chatLog.scrollTop) + 2) >= (chatLog.scrollHeight - chatLog.offsetHeight)) {
+                    getRoomChatMessages()
+                }
+            });
+        })
+
+        
+
+        function createChatMessageElement(msg, username, avatar, user_id, timestamp, maintainPosition, isNewMessage){
             var chatLog = document.getElementById("chatLog")
 
             var newMessageDiv = document.createElement("div")
@@ -252,13 +338,27 @@
             div1.appendChild(msgP)
 
             newMessageDiv.appendChild(div1)
-
-            chatLog.insertBefore(newMessageDiv, chatLog.firstChild)
+            if(isNewMessage){
+                chatLog.insertBefore(newMessageDiv, chatLog.firstChild)
+            }
+            else{
+                chatLog.appendChild(newMessageDiv)
+            }
+            
+            if(!maintainPosition){
+                chatLog.scrollTop = chatLog.scrollHeight
+            }
+            // chatLog.insertBefore(newMessageDiv, chatLog.firstChild)
         }
 
         function showClientErrorModal(message){
             document.getElementById("id_client_error_modal_body").innerHTML = message
             document.getElementById("id_trigger_client_error_modal").click()
+        }
+
+        function setConnectedUsersCount(count){
+            element = document.getElementById("id_connected_users")
+            element.innerHTML = count
         }
     </script>
 
