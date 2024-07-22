@@ -2,6 +2,7 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from user.models import UserAccount
+from chat.utils import get_private_room_or_create
 from django.conf import settings
 from django.utils import timezone  
 from notification.models import Notification
@@ -28,10 +29,13 @@ class FriendRequest(models.Model):
             receiver_notification.description = f"You accepted {self.sender.username}'s friend request."
             receiver_notification.timestamp = timezone.now()
             receiver_notification.save()
-
+            #Add requester to user friendlist, then add to sender's friendlist
             receiver_list.add_friend(self.sender)
             sender_list = FriendList.objects.get(user=self.sender)
             if sender_list:
+                sender_list.add_friend(self.receiver)
+                self.is_active = False
+                self.save()
                 #Create notification for SENDER
                 self.notifications.create(
 					target=self.sender,
@@ -40,16 +44,12 @@ class FriendRequest(models.Model):
 					description=f"{self.receiver.username} accepted your friend request.",
 					content_type=content_type,
 				)
-                sender_list.add_friend(self.receiver)
-                self.is_active = False
-                self.save()
         return receiver_notification
 
 
     def reject(self):
         self.is_active = False
         self.save()
-
         content_type = ContentType.objects.get_for_model(self)
 		#Update notification for RECEIVER
         notification = Notification.objects.get(target=self.receiver, content_type=content_type, object_id=self.id)
@@ -73,7 +73,6 @@ class FriendRequest(models.Model):
     def cancel(self):
         self.is_active = False
         self.save()
-
         content_type = ContentType.objects.get_for_model(self)
         # Create notification for SENDER
         self.notifications.create(
@@ -105,17 +104,11 @@ class FriendList(models.Model):
         if not account in self.friends.all():
             self.friends.add(account)
             self.save()
-
-            content_type = ContentType.objects.get_for_model(self)
-			# Notification(
-			# 	target=self.user,
-			# 	from_user=account,
-			# 	redirect_url=f"profile/{account.pk}",
-			# 	description=f"You are now friends with {account.username}.",
-			# 	content_type=content_type,
-			# 	object_id=self.id,
-			# ).save()
-            
+            room = get_private_room_or_create(self.user, account)
+            if not room.is_active:
+                room.is_active = True
+                room.save()
+            content_type = ContentType.objects.get_for_model(self)            
             self.notifications.create(
 				target=self.user,
 				from_user=account,
@@ -128,15 +121,18 @@ class FriendList(models.Model):
     def remove_friend(self, account):
         if account in self.friends.all():
             self.friends.remove(account)
+            self.save()
+            room = get_private_room_or_create(self.user, account)
+            if room.is_active:
+                room.is_active = False
+                room.save()
     
     def unfriend(self, friend):
         user = self
         user.remove_friend(friend)
         friendList = FriendList.objects.get(user=friend)
         friendList.remove_friend(self.user)
-
         content_type = ContentType.objects.get_for_model(self)
-
 		# Create notification for removee
         self.notifications.create(
 			target=friend,
@@ -145,7 +141,6 @@ class FriendList(models.Model):
 			description=f"You are no longer friends with {self.user.username}.",
 			content_type=content_type,
 		)
-
 		# Create notification for remover
         self.notifications.create(
 			target=self.user,
@@ -176,10 +171,23 @@ class BlockList(models.Model):
         if not account in self.blocked.all() and account != self.user:
             self.blocked.add(account)
             self.save()
+            print('@@@@@@@@---> BLocked')
+            room = get_private_room_or_create(self.user, account)
+            if room.is_active:
+                room.is_active = False
+                room.save()
+            print('Room deactivated @@@@@@@@---')
 
     def unblock_user(self, account):
         if account in self.blocked.all() and account != self.user:
             self.blocked.remove(account)
+            other_list = BlockList.objects.get(user=account)
+            if self.user not in other_list.blocked.all():
+                print(f'<<<---------->>>')
+                room = get_private_room_or_create(self.user, account)
+                if not room.is_active:
+                    room.is_active = True
+                    room.save()
 
     def is_blocked(self, account):
         if account in self.blocked.all():
@@ -190,7 +198,6 @@ class BlockList(models.Model):
     def is_either_blocked(auth_user, that_user):
         block_list = BlockList.objects.get(user=auth_user)
         other_block_list = BlockList.objects.get(user=that_user)
-
         if block_list and block_list.is_blocked(that_user) or other_block_list and other_block_list.is_blocked(auth_user):
             return True
         return False

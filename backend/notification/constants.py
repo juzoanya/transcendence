@@ -1,4 +1,4 @@
-DEFAULT_NOTIFICATION_PAGE_SIZE = 5
+DEFAULT_NOTIFICATION_PAGE_SIZE = 10
 
 GENERAL_MSG_TYPE_NOTIFICATIONS_DATA = 0  # New 'general' notifications data payload incoming
 GENERAL_MSG_TYPE_PAGINATION_EXHAUSTED = 1  # No more 'general' notifications to retrieve

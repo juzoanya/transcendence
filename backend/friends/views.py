@@ -244,23 +244,22 @@ def remove_friend(request, *args, **kwargs):
 
 
 @csrf_exempt
+@require_POST
 @login_required
 def block_user(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'GET':
-		user_id = kwargs.get('user_id')
-		to_block = UserAccount.objects.get(pk=user_id)
-		if user_id and to_block != user:
-			try:
-				block_list = BlockList.objects.get(user=user)
-				block_list.block_user(to_block)
-				return JsonResponse({'success': True, 'message': f'You have successfully blocked {to_block}'}, status=200)
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=400)
-		else:
-			return JsonResponse({'success': False, 'message': 'Bad request'}, status=400)
+	user_id = kwargs.get('user_id')
+	to_block = UserAccount.objects.get(pk=user_id)
+	if user_id and to_block != user:
+		try:
+			block_list = BlockList.objects.get(user=user)
+			print(f'-------------->>>>>0')
+			block_list.block_user(to_block)
+			return JsonResponse({'success': True, 'message': f'You have successfully blocked {to_block}'}, status=200)
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
 	else:
-		return JsonResponse({'success': False, 'message': 'method not allowed'}, status=405)
+		return JsonResponse({'success': False, 'message': 'Bad request'}, status=400)
 		
 
 
@@ -269,7 +268,7 @@ def block_user(request, *args, **kwargs):
 @login_required
 def unblock_user(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'GET':
+	if request.method == 'POST':
 		user_id = kwargs.get('user_id')
 		to_unblock = UserAccount.objects.get(pk=user_id)
 		if user_id and to_unblock != user:

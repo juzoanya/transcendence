@@ -110,34 +110,22 @@ def sent_invites(request, *args, **kwargs):
 	return JsonResponse({'data': invites_sent})
 
 @csrf_exempt
+@require_POST
 @login_required
 def game_invite_accept(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'POST':
-		invite_id = kwargs.get('invite_id')
-		# data = json.loads(request.body)
-		# alias = data.get('display_name')
-		if invite_id:
-			game_invite = GameRequest.objects.get(pk=invite_id)
-			if game_invite and game_invite.is_active==True:
-				if game_invite.invitee == user:
-					game_invite.accept()
-					# try:
-					# 	player = Player.objects.get(user=user)
-					# 	player.alias = alias
-					# 	player.save()
-					# except Exception as e:
-					# 	return JsonResponse({'success': False, 'message': str(e)}, status=400)
-					return JsonResponse({'success': True, 'message': 'Invite accepted.'}, status=200)
-				else:
-					return JsonResponse({'success': False, 'message': 'You cannot access this feature'}, status=400)
-			else:
-				return JsonResponse({'success': False, 'message': 'This invite does not exist'}, status=400)
+	invite_id = kwargs.get('invite_id')
+	if not invite_id:
+		return BadRequest400(message='Invite is invalid.')
+	game_invite = GameRequest.objects.get(pk=invite_id)
+	if game_invite and game_invite.is_active==True:
+		if game_invite.invitee == user:
+			game_invite.accept()
+			return JsonResponse({'success': True, 'message': 'Invite accepted.'}, status=200)
 		else:
-			return JsonResponse({'success': False, 'message': 'Invite is invalid.'}, status=400)
+			return JsonResponse({'success': False, 'message': 'You cannot access this feature'}, status=400)
 	else:
-		return JsonResponse({'success': False}, status=403)
-
+		return JsonResponse({'success': False, 'message': 'This invite does not exist'}, status=400)
 
 
 @csrf_exempt
@@ -188,242 +176,226 @@ def game_invite_cancel(request, *args, **kwargs):
 
 
 @csrf_exempt
+@require_POST
 @login_required
 def game_schedule(request, *args, **kwargs):
 	user = request.user
 	schedules = []
-	if request.method == 'POST':
-		player = Player.objects.get(user=user)
-		if player:
-			try:
-				game_list = GameSchedule.objects.filter(Q(player_one=player) | Q(player_two=player), is_active=True)
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=400)
-		else:
-			return JsonResponse({'success': False, 'message': 'Player does not exist'}, status=400)
-
-		for game in game_list:
-			ply_one_user_acc = UserAccount.objects.get(username=game.player_one)
-			ply_two_user_acc = UserAccount.objects.get(username=game.player_two)
-			item = {
-				'schedule_id': game.pk,
-				'game_id': game.game_id,
-				'game_mode': game.game_mode,
-				'tournament': game.tournament,
-				'player_one': {
-					'id': ply_one_user_acc.pk,
-					'username': ply_one_user_acc.username,
-					'avatar': ply_one_user_acc.avatar.url,
-					'alias': Player.objects.get(user=ply_one_user_acc).alias,
-				},
-				'player_two': {
-					'id': ply_two_user_acc.pk,
-					'username': ply_two_user_acc.username,
-					'avatar': ply_two_user_acc.avatar.url,
-					'alias': Player.objects.get(user=ply_two_user_acc).alias,
-				}
-			}
-			schedules.append(item)
-		return JsonResponse({'data': schedules}, status=200)
+	player = Player.objects.get(user=user)
+	if player:
+		try:
+			game_list = GameSchedule.objects.filter(Q(player_one=player) | Q(player_two=player), is_active=True)
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
 	else:
-		return JsonResponse({'success': False}, status=403)
+		return JsonResponse({'success': False, 'message': 'Player does not exist'}, status=400)
+
+	for game in game_list:
+		ply_one_user_acc = UserAccount.objects.get(username=game.player_one)
+		ply_two_user_acc = UserAccount.objects.get(username=game.player_two)
+		item = {
+			'schedule_id': game.pk,
+			'game_id': game.game_id,
+			'game_mode': game.game_mode,
+			'tournament': game.tournament,
+			'player_one': {
+				'id': ply_one_user_acc.pk,
+				'username': ply_one_user_acc.username,
+				'avatar': ply_one_user_acc.avatar.url,
+				'alias': Player.objects.get(user=ply_one_user_acc).alias,
+			},
+			'player_two': {
+				'id': ply_two_user_acc.pk,
+				'username': ply_two_user_acc.username,
+				'avatar': ply_two_user_acc.avatar.url,
+				'alias': Player.objects.get(user=ply_two_user_acc).alias,
+			}
+		}
+		schedules.append(item)
+	return JsonResponse({'data': schedules}, status=200)
 
 
 @csrf_exempt
+@require_GET
 @login_required
 def match_history(request, *args, **kwargs):
 	user = request.user
 	history = []
-	if request.method == 'GET':
-		player = UserAccount.objects.get(username=user)
-		if player:
-			try:
-				games_played = GameResults.objects.filter(Q(player_one=player) | Q(player_two=player))
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=400)
-		else:
-			return JsonResponse({'success': False, 'message': 'Player does not exist'}, status=400)
-
-		for game in games_played:
-			player_one_acc = UserAccount.objects.get(username=game.player_one)
-			player_two_acc = UserAccount.objects.get(username=game.player_two)
-			item = {
-				'match_id': game.pk,
-				'game_id': game.game_id,
-				'game_mode': game.game_mode,
-				'tournament': game.tournament.name,
-				'player_one': serialize_player_details(player_one_acc, Player.objects.get(user=player_one_acc)),
-				'player_two': serialize_player_details(player_two_acc, Player.objects.get(user=player_two_acc)),# {
-				'player_one_score': game.player_one_score,
-				'player_two_score': game.player_two_score,
-				'date': game.timestamp,
-				'winner': Player.objects.get(user=game.winner).alias
-				# 'winner': game.winner.username
-			}
-			history.append(item)
-		return JsonResponse({'data': history}, status=200)
+	player = UserAccount.objects.get(username=user)
+	if player:
+		try:
+			games_played = GameResults.objects.filter(Q(player_one=player) | Q(player_two=player))
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
 	else:
-		return JsonResponse({'success': False}, status=403)
+		return JsonResponse({'success': False, 'message': 'Player does not exist'}, status=400)
+	for game in games_played:
+		player_one_acc = UserAccount.objects.get(username=game.player_one)
+		player_two_acc = UserAccount.objects.get(username=game.player_two)
+		item = {
+			'match_id': game.pk,
+			'game_id': game.game_id,
+			'game_mode': game.game_mode,
+			'tournament': game.tournament.name,
+			'player_one': serialize_player_details(player_one_acc, Player.objects.get(user=player_one_acc)),
+			'player_two': serialize_player_details(player_two_acc, Player.objects.get(user=player_two_acc)),# {
+			'player_one_score': game.player_one_score,
+			'player_two_score': game.player_two_score,
+			'date': game.timestamp,
+			'winner': Player.objects.get(user=game.winner).alias
+			# 'winner': game.winner.username
+		}
+		history.append(item)
+	return JsonResponse({'data': history}, status=200)
 
 
 @csrf_exempt
+@require_POST
 @login_required
 def game_play(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'POST':
-		schedule_id = kwargs.get('schedule_id')
-		if schedule_id:
-			try:
-				schedule = GameSchedule.objects.get(pk=schedule_id)
-				schedule.is_active = False
-				schedule.save()
-				return JsonResponse({'success': True, 'message': 'OK'}, status=200)
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=400)
-			
-		else:
-			return JsonResponse({'success': False, 'message': 'Schedule not found'}, status=400)
+	schedule_id = kwargs.get('schedule_id')
+	if schedule_id:
+		try:
+			schedule = GameSchedule.objects.get(pk=schedule_id)
+			schedule.is_active = False
+			schedule.save()
+			return JsonResponse({'success': True, 'message': 'OK'}, status=200)
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
+		
 	else:
-		return JsonResponse({'success': False}, status=403)
+		return JsonResponse({'success': False, 'message': 'Schedule not found'}, status=400)
 
 	
 
 @csrf_exempt
+@require_POST
 @login_required
 def create_tournament(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'POST':
-		data = json.loads(request.body)
-		name = data.get('name')
-		mode = data.get('mode')
-		game_id = data.get('game_id')
-		player_ids = data.get('players')
-		
-		if user.pk in player_ids:
-			message = 'You cannot invite yourself to the tournament'
-			return Forbidden403(message)
+	data = json.loads(request.body)
+	name = data.get('name')
+	mode = data.get('mode')
+	game_id = data.get('game_id')
+	player_ids = data.get('players')
+	
+	if user.pk in player_ids:
+		message = 'You cannot invite yourself to the tournament'
+		return Forbidden403(message)
+	try:
+		Tournament.objects.get(name=name)
+		return JsonResponse({'success': False, 'message': 'Tournament with duplicate name not allowed'}, status=400)
+	except Tournament.DoesNotExist:
 		try:
-			Tournament.objects.get(name=name)
-			return JsonResponse({'success': False, 'message': 'Tournament with duplicate name not allowed'}, status=400)
-		except Tournament.DoesNotExist:
-			try:
-				tournament = Tournament.objects.create(
-					name=name,
-					mode=mode,
-					creator=user,
-					game_id=game_id
-				)
-				tournament.players.add(Player.objects.get(user=user))
-				for id in player_ids:
-					invitee = UserAccount.objects.get(pk=id)
-					tournament.players.add(Player.objects.get(user=invitee))
-					try:
-						GameRequest.objects.get(
-						user=user,
-						invitee=invitee,
-						game_mode='tournament',
-						tournament=tournament,
-						is_active=True
-						)
-					except GameRequest.DoesNotExist:
-						if BlockList.is_either_blocked(user, invitee) == False:
-							response = send_invite(user, invitee, game_id, 'tournament', tournament)
-							if response != 'invitation was sent':
-								tournament.delete()
-								return JsonResponse({'success': False, 'message': response}, status=400)
-						else:
+			tournament = Tournament.objects.create(
+				name=name,
+				mode=mode,
+				creator=user,
+				game_id=game_id
+			)
+			tournament.players.add(Player.objects.get(user=user))
+			for id in player_ids:
+				invitee = UserAccount.objects.get(pk=id)
+				tournament.players.add(Player.objects.get(user=invitee))
+				try:
+					GameRequest.objects.get(
+					user=user,
+					invitee=invitee,
+					game_mode='tournament',
+					tournament=tournament,
+					is_active=True
+					)
+				except GameRequest.DoesNotExist:
+					if BlockList.is_either_blocked(user, invitee) == False:
+						response = send_invite(user, invitee, game_id, 'tournament', tournament)
+						if response != 'invitation was sent':
 							tournament.delete()
-							return JsonResponse({'success': False, 'message': 'Blocklist: cannot invite user'}, status=400)
-				tournament_player_creator(user, tournament)
-				return JsonResponse({'success': True, 'message': 'Tournament created'}, status=200)
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=400)
-	return JsonResponse({'success': False}, status=405)
+							return JsonResponse({'success': False, 'message': response}, status=400)
+					else:
+						tournament.delete()
+						return JsonResponse({'success': False, 'message': 'Blocklist: cannot invite user'}, status=400)
+			tournament_player_creator(user, tournament)
+			return JsonResponse({'success': True, 'message': 'Tournament created'}, status=200)
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
 @csrf_exempt
+@require_GET
 @login_required
 def tournament_list_view(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'GET':
-		tournament_list = []
-		try:
-			tournaments = Tournament.objects.all()
-		except Exception as e:
-			return JsonResponse({'success': False, 'message': str(e)}, status=400)
-		for tournament in tournaments:
-			item = {
-				'id': tournament.id,
-				'name': tournament.name,
-				'game_id': tournament.get_game_id_display(),
-				'status': tournament.status
-			}
-			tournament_list.append(item)
-		return JsonResponse({'success': True, 'message': '', 'data': tournament_list}, status=200)
-	else:
-		return JsonResponse({'success': False}, status=405)
+	tournament_list = []
+	try:
+		tournaments = Tournament.objects.all()
+	except Exception as e:
+		return JsonResponse({'success': False, 'message': str(e)}, status=400)
+	for tournament in tournaments:
+		item = {
+			'id': tournament.id,
+			'name': tournament.name,
+			'game_id': tournament.get_game_id_display(),
+			'status': tournament.status
+		}
+		tournament_list.append(item)
+	return JsonResponse({'success': True, 'message': '', 'data': tournament_list}, status=200)
 
 
 @csrf_exempt
+@require_GET
 @login_required
 def tournament_detailed_view(request, *args, **kwargs):
 	user = request.user
-	if request.method == 'GET':
-		t_id = kwargs.get('tournament_id')
-		if t_id:
-			try:
-				tournament = Tournament.objects.get(id=t_id)
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=400)
-			data = tournament_details(tournament)
-			return JsonResponse({'success': True, 'message': '', 'data': data}, status=200)
-		else:
-			return JsonResponse({'success': False}, status=422)
+	t_id = kwargs.get('tournament_id')
+	if t_id:
+		try:
+			tournament = Tournament.objects.get(id=t_id)
+		except Exception as e:
+			return JsonResponse({'success': False, 'message': str(e)}, status=400)
+		data = tournament_details(tournament)
+		return JsonResponse({'success': True, 'message': '', 'data': data}, status=200)
 	else:
-		return JsonResponse({'success': False}, status=405)
-
+		return JsonResponse({'success': False}, status=422)
 
 @csrf_exempt
+@require_POST
 @login_required
 def tournament_force_schedule(request, *args, **kwargs):
 	t_id = kwargs.get('tournament_id')
 	user = request.user
-	if request.method == 'POST':
-		if t_id:
-			try:
-				tournament = Tournament.objects.get(id=t_id)
-			except Tournament.DoesNotExist:
-				return JsonResponse({'success': False, 'message': 'Tournament does not exist'}, status=400)
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=500)
-			if tournament.creator != user:
-				return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
-			try:
-				# TournamentPlayer.objects.get(tournament=tournament, player=Player.objects.get(user=user))
-				players = TournamentPlayer.objects.filter(tournament=tournament)
-				if len(players) >= 4:
-					schedules = GameRequest.objects.filter(tournament=tournament, is_active=True)
-					for schedule in schedules:
-						schedule.cancel()
-					try:
-						tournament.update(True, False)
-						schedules = GameSchedule.objects.filter(tournament=tournament, is_active=True)
-						if len(schedules) < 1:
-							return JsonResponse({'success': False, 'message': 'match fixtures creation failed'}, status=500)
-						else:
-							return JsonResponse({'success': True, 'message': 'match fixtures created'}, status=200)
-					except Exception as e:
-						return JsonResponse({'success': True, 'message': str(e)}, status=500)
-				else:
-					return JsonResponse({'success': False, 'message': 'At least four players are required to start tournament'}, status=400)
-			except TournamentPlayer.DoesNotExist:
-				return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
-			except Exception as e:
-				return JsonResponse({'success': False, 'message': str(e)}, status=500)
+	if not t_id:
+		return JsonResponse({'success': False, 'message': 'Bad Request: tournament id not present'}, status=400)
+	try:
+		tournament = Tournament.objects.get(id=t_id)
+	except Tournament.DoesNotExist:
+		return JsonResponse({'success': False, 'message': 'Tournament does not exist'}, status=400)
+	except Exception as e:
+		return JsonResponse({'success': False, 'message': str(e)}, status=500)
+	if tournament.creator != user:
+		return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
+	try:
+		# TournamentPlayer.objects.get(tournament=tournament, player=Player.objects.get(user=user))
+		players = TournamentPlayer.objects.filter(tournament=tournament)
+		if len(players) < 4:
+			return JsonResponse({'success': False, 'message': 'At least four players are required to start tournament'}, status=400)
 		else:
-			return JsonResponse({'success': False, 'message': 'Bad Request: tournament id not present'}, status=400)
-	else:
-		return JsonResponse({'success': False}, status=405)
+			schedules = GameRequest.objects.filter(tournament=tournament, is_active=True)
+			for schedule in schedules:
+				schedule.cancel()
+			try:
+				tournament.update(True, False)
+				schedules = GameSchedule.objects.filter(tournament=tournament, is_active=True)
+				if len(schedules) < 1:
+					return JsonResponse({'success': False, 'message': 'match fixtures creation failed'}, status=500)
+				else:
+					return JsonResponse({'success': True, 'message': 'match fixtures created'}, status=200)
+			except Exception as e:
+				return JsonResponse({'success': True, 'message': str(e)}, status=500)
+	except TournamentPlayer.DoesNotExist:
+		return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
+	except Exception as e:
+		return JsonResponse({'success': False, 'message': str(e)}, status=500)			
 
 @csrf_exempt
 @login_required

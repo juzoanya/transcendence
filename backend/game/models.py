@@ -254,6 +254,7 @@ class GameRequest(models.Model):
 		self.is_active = False
 		self.status = 'accepted'
 		self.save()
+		add_user_to_chat_room(self.invitee)
 		content_type = ContentType.objects.get_for_model(self)
 		#Update notification for RECEIVER
 		receiver_notification = Notification.objects.get(target=self.invitee, content_type=content_type, object_id=self.id)
@@ -329,6 +330,17 @@ class GameRequest(models.Model):
 	def get_cname(self):
 		return 'GameRequest'
 	
+def add_user_to_chat_room(user, tournament_name):
+	from chat.models import ChatRoom
+	try:
+		room = ChatRoom.objects.get(title=tournament_name)
+	except:
+		pass
+	room.users.add(user)
+	room.save()
+
+
+	
 @receiver(post_save, sender=GameRequest)
 def create_notification(sender, instance, created, **kwargs):
 	if created:
@@ -340,6 +352,15 @@ def create_notification(sender, instance, created, **kwargs):
 			content_type=instance,
 		)
 
+
+@receiver(post_save, sender=Tournament)
+def create_tournament_chat_room(sender, instance, created, **kwargs):
+	from chat.models import ChatRoom
+	if created:
+		room = ChatRoom.objects.create(title=instance.name)
+		room.type = 'tournament'
+		room.users.add(instance.creator)
+		room.save()
 
 
 
